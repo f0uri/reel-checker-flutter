@@ -804,6 +804,9 @@ function onReelResult(jsonString) {
   var card = document.getElementById('card');
   card.style.display = 'block';
   card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+  /* v4.3.1: وسم صغير يبين أن النتيجة جات عبر السيرفر (للتشخيص فقط) */
+  var st = document.getElementById('dlStatus');
+  if (r.viaServer) { st.textContent = '⚡ عبر السيرفر'; st.style.display = 'block'; }
 }
 
 /* ---- بحث عن حساب: الاسم، البايو، الصورة، الأعداد ---- */
