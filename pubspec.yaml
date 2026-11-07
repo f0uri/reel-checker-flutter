@@ -1,1 +1,27 @@
-bmFtZTogcmVlbF9jaGVja2VyCmRlc2NyaXB0aW9uOiDYqtmG2LLZitmEINix2YrZhNiy2KfYqiDigJQgdmVyaWZ5IGFuZCBkb3dubG9hZCBJbnN0YWdyYW0gUmVlbHMgKEFuZHJvaWQgKyBpT1MpCnB1Ymxpc2hfdG86ICJub25lIgp2ZXJzaW9uOiA0LjAuMCszNQoKZW52aXJvbm1lbnQ6CiAgc2RrOiAiPj0zLjIuMCA8NC4wLjAiCgpkZXBlbmRlbmNpZXM6CiAgZmx1dHRlcjoKICAgIHNkazogZmx1dHRlcgogIHdlYnZpZXdfZmx1dHRlcjogXjQuMTAuMAogIGh0dHA6IF4xLjIuMAogIHBhdGhfcHJvdmlkZXI6IF4yLjEuMAogIHNoYXJlX3BsdXM6IF4xMC4wLjAKICB1cmxfbGF1bmNoZXI6IF42LjMuMAogIHNoYXJlZF9wcmVmZXJlbmNlczogXjIuMy4wCgpkZXZfZGVwZW5kZW5jaWVzOgogIGZsdXR0ZXJfdGVzdDoKICAgIHNkazogZmx1dHRlcgogIGZsdXR0ZXJfbGludHM6IF40LjAuMAoKZmx1dHRlcjoKICB1c2VzLW1hdGVyaWFsLWRlc2lnbjogdHJ1ZQogIGFzc2V0czoKICAgIC0gYXNzZXRzL2luZGV4Lmh0bWwK
+name: reel_checker
+description: تنزيل ريلزات — verify and download Instagram Reels (Android + iOS)
+publish_to: "none"
+version: 4.0.0+35
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.10.0
+  http: ^1.2.0
+  path_provider: ^2.1.0
+  share_plus: ^10.0.0
+  url_launcher: ^6.3.0
+  shared_preferences: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/index.html
