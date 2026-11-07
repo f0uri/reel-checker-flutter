@@ -21,7 +21,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'downloader.dart';
 import 'instagram_service.dart';
-import 'multi_platform_service.dart';
 import 'server_service.dart';
 import 'updater.dart';
 
@@ -43,7 +42,6 @@ class Bridge {
   function call(m, a) { ch.postMessage(JSON.stringify({m: m, a: a})); }
   window.AndroidBridge = {
     checkReel: function (code) { call('checkReel', [code]); },
-    checkMedia: function (url) { call('checkMedia', [url]); },
     downloadReel: function (videoUrl, shortcode) { call('downloadReel', [videoUrl, shortcode]); },
     downloadMediaByCode: function (shortcode) { call('downloadMediaByCode', [shortcode]); },
     downloadMediaUrls: function (shortcode, mediaType, urlsJson) { call('downloadMediaUrls', [shortcode, mediaType, urlsJson]); },
@@ -96,9 +94,6 @@ class Bridge {
       switch (method) {
         case 'checkReel':
           await _checkReel(_arg(args, 0));
-          break;
-        case 'checkMedia':
-          await _checkMedia(_arg(args, 0));
           break;
         case 'downloadReel':
           await _downloadReel(_arg(args, 0), _arg(args, 1));
@@ -185,34 +180,6 @@ class Bridge {
     } catch (_) {
       await _postJson(
           'onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
-    }
-  }
-
-  /// YouTube / TikTok / Facebook link: same onReelResult callback
-  /// and result shape as Instagram, so the existing result card and
-  /// download button work unchanged. The page routes non-Instagram
-  /// links here; Instagram links still use checkReel.
-  Future<void> _checkMedia(String rawUrl) async {
-    final url = rawUrl.trim();
-    if (url.isEmpty) {
-      await _postJson(
-          'onReelResult', {'ok': false, 'error': 'MEDIA_UNSUPPORTED'});
-      return;
-    }
-    try {
-      await ServerService.ensureLoaded();
-      final viaServer = await ServerService.parseMedia(url);
-      if (viaServer != null) {
-        await _postJson('onReelResult', viaServer);
-        return;
-      }
-      final meta = await MultiPlatformService.fetchMediaMeta(url);
-      await _postJson('onReelResult', meta);
-    } on PlatformMediaException catch (e) {
-      await _postJson('onReelResult', {'ok': false, 'error': e.code});
-    } catch (_) {
-      await _postJson(
-          'onReelResult', {'ok': false, 'error': 'MEDIA_ERROR'});
     }
   }
 
