@@ -31,7 +31,7 @@ jobs:
       # the signing keystore (base64 in the repo) and gradle-wrapper.jar.
       - name: Generate launcher icons
         run: |
-          python3 -m pip install --quiet pillow
+          python3 -m pip install --quiet --break-system-packages pillow
           python3 tools/make_icons.py
 
       - name: Restore signing keystore
@@ -74,7 +74,7 @@ jobs:
 
       - name: Generate launcher icons
         run: |
-          python3 -m pip install --quiet pillow
+          python3 -m pip install --quiet --break-system-packages pillow
           python3 tools/make_icons.py
 
       - name: Get dependencies
