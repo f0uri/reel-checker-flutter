@@ -20,7 +20,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.youssef.reelchecker"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // v4.3.1: pin NDK 27 — the plugins (webview, share_plus, url_launcher,
+    // shared_preferences, path_provider) require 27.0.12077973; Flutter's
+    // default (23.1.7779620) broke :app:packageRelease on run #27.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
