@@ -36,6 +36,10 @@ class MultiPlatformService {
   static const String _browserUa =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+  static const String _iphoneUa =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
+      'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 '
+      'Mobile/15E148 Safari/604.1';
   // The public InnerTube key shipped in YouTube's own web client.
   static const String _ytApiKey =
       'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
@@ -94,14 +98,20 @@ class MultiPlatformService {
   // ================= small helpers =================
 
   static Future<String?> _getText(String url) async {
+    return _getTextWith(url, _browserUa);
+  }
+
+  static Future<String?> _getTextWith(String url, String ua,
+      {String? referer}) async {
     try {
+      final headers = <String, String>{
+        'User-Agent': ua,
+        'Accept': 'text/html,application/xhtml+xml,application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+      };
+      if (referer != null) headers['Referer'] = referer;
       final resp = await IgHttp.get(url,
-          headers: {
-            'User-Agent': _browserUa,
-            'Accept':
-                'text/html,application/xhtml+xml,application/json',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
+          headers: headers,
           connectTimeout: _timeout,
           readTimeout: _timeout);
       if (resp.statusCode < 200 || resp.statusCode >= 300) return null;
@@ -166,25 +176,50 @@ class MultiPlatformService {
     if (id == null) throw PlatformMediaException('YOUTUBE_NOT_FOUND');
     // 1. Watch page (works on friendly networks; from datacenter IPs
     //    the formats come back cipher-locked or the page demands login).
+    String? watchHtml;
     try {
-      final meta = await _youTubeFromWatchPage(id);
+      watchHtml =
+          await _getText('https://www.youtube.com/watch?v=$id');
+    } catch (_) {}
+    if (watchHtml != null) {
+      try {
+        final meta = _youTubePlayerFromHtml(watchHtml, id);
+        if (meta != null) return meta;
+      } catch (_) {}
+    }
+    // 2. InnerTube ANDROID client (the one downloaders rely on:
+    //    it returns direct muxed URLs on mobile IPs where the WEB
+    //    client now answers UNPLAYABLE).
+    try {
+      final meta = await _youTubeFromInnerTube(id, android: true);
       if (meta != null) return meta;
     } catch (_) {}
-    // 2. InnerTube WEB player request (same request the web client
-    //    makes; often succeeds on residential/mobile IPs).
+    // 3. InnerTube WEB player request, with the visitorData from
+    //    the watch page when available (a session makes the WEB
+    //    client far more likely to answer OK).
+    String? visitorData;
+    if (watchHtml != null) {
+      visitorData =
+          InstagramService.pick(watchHtml, r'"visitorData":"([^"]+)"');
+    }
     try {
-      final meta = await _youTubeFromInnerTube(id);
+      final meta = await _youTubeFromInnerTube(id,
+          android: false, visitorData: visitorData);
+      if (meta != null) return meta;
+    } catch (_) {}
+    // 4. Embed page (its player_response sometimes carries the
+    //    formats when the watch page does not).
+    try {
+      final meta = await _youTubeFromEmbedPage(id);
       if (meta != null) return meta;
     } catch (_) {}
     throw PlatformMediaException('YOUTUBE_LOCKED');
   }
 
-  static Future<Map<String, dynamic>?> _youTubeFromWatchPage(
-      String id) async {
-    final html = await _getText('https://www.youtube.com/watch?v=$id');
-    if (html == null || !html.contains('ytInitialPlayerResponse')) {
-      return null;
-    }
+  /// Parse ytInitialPlayerResponse out of a YouTube page's HTML.
+  static Map<String, dynamic>? _youTubePlayerFromHtml(
+      String html, String id) {
+    if (!html.contains('ytInitialPlayerResponse')) return null;
     final marker = html.indexOf('ytInitialPlayerResponse');
     final open = html.indexOf('{', marker);
     if (open < 0) return null;
@@ -199,29 +234,63 @@ class MultiPlatformService {
     }
   }
 
-  static Future<Map<String, dynamic>?> _youTubeFromInnerTube(
+  static Future<Map<String, dynamic>?> _youTubeFromEmbedPage(
       String id) async {
+    final html = await _getText('https://www.youtube.com/embed/$id');
+    if (html == null) return null;
+    final fromInitial = _youTubePlayerFromHtml(html, id);
+    if (fromInitial != null) return fromInitial;
+    final raw = InstagramService.pick(
+        html, r'"player_response":"((?:[^"\\]|\\.)*)"');
+    if (raw == null || raw.isEmpty) return null;
     try {
+      final pr = jsonDecode(InstagramService.deepUnescape(raw))
+          as Map<String, dynamic>;
+      return _youTubeFromPlayer(pr, id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _youTubeFromInnerTube(String id,
+      {bool android = false, String? visitorData}) async {
+    try {
+      final client = android
+          ? {
+              'clientName': 'ANDROID',
+              'clientVersion': '19.09.37',
+              'androidSdkVersion': 30,
+              'hl': 'en',
+              'gl': 'US',
+            }
+          : {
+              'clientName': 'WEB',
+              'clientVersion': '2.20240111.09.00',
+              'hl': 'en',
+              'gl': 'US',
+              if (visitorData != null && visitorData.isNotEmpty)
+                'visitorData': visitorData,
+            };
       final body = jsonEncode({
-        'context': {
-          'client': {
-            'clientName': 'WEB',
-            'clientVersion': '2.20240111.09.00',
-            'hl': 'en',
-            'gl': 'US',
-          }
-        },
+        'context': {'client': client},
         'videoId': id,
         'racyCheckOk': true,
         'contentCheckOk': true,
       });
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        if (android) ...{
+          'User-Agent':
+              'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+          'X-Goog-Api-Format-Version': '2',
+        } else ...{
+          'User-Agent': _browserUa,
+          'Origin': 'https://www.youtube.com',
+        },
+      };
       final resp = await IgHttp.post(
           'https://www.youtube.com/youtubei/v1/player?key=$_ytApiKey',
-          headers: {
-            'User-Agent': _browserUa,
-            'Origin': 'https://www.youtube.com',
-            'Content-Type': 'application/json',
-          },
+          headers: headers,
           body: body,
           connectTimeout: _timeout,
           readTimeout: _timeout);
@@ -352,19 +421,56 @@ class MultiPlatformService {
     final id = _tikTokId(full);
     if (id == null) throw PlatformMediaException('TIKTOK_NOT_FOUND');
 
-    final html = await _getText(full);
-    if (html == null) throw PlatformMediaException('TIKTOK_BLOCKED');
+    // Try several page variants: TikTok serves the video data to
+    // some clients and a shell/verify page to others. First page
+    // that carries playAddr wins.
+    final attempts = <Future<String?>>[
+      _getTextWith(full, _browserUa,
+          referer: 'https://www.tiktok.com/'),
+      _getTextWith(full, _iphoneUa,
+          referer: 'https://www.tiktok.com/'),
+      _getTextWith('https://m.tiktok.com/v/$id', _iphoneUa,
+          referer: 'https://www.tiktok.com/'),
+    ];
+    for (final attempt in attempts) {
+      String? html;
+      try {
+        html = await attempt;
+      } catch (_) {}
+      if (html == null) continue;
+      final meta = await _tikTokFromPage(html, id, full);
+      if (meta != null) return meta;
+    }
+    // Last resort: the item detail API (sometimes answers when
+    // the page does not).
+    try {
+      final api = await _getTextWith(
+          'https://www.tiktok.com/api/item/detail/?itemId=$id&aid=1988',
+          _browserUa,
+          referer: 'https://www.tiktok.com/');
+      if (api != null && api.isNotEmpty) {
+        final meta = await _tikTokFromPage(api, id, full);
+        if (meta != null) return meta;
+      }
+    } catch (_) {}
+    throw PlatformMediaException('TIKTOK_BLOCKED');
+  }
+
+  /// Parse one TikTok page/API response: returns the video result
+  /// when it carries playAddr/downloadAddr, else null.
+  static Future<Map<String, dynamic>?> _tikTokFromPage(
+      String html, String id, String full) async {
     final text = InstagramService.deepUnescape(html);
 
     // The video file in the rehydration JSON (present on friendly
     // networks; on datacenter IPs TikTok serves a shell page without
-    // it — then this throws TIKTOK_BLOCKED).
+    // it — then this returns null and the caller tries the next source).
     var videoUrl = InstagramService.pick(
         text, r'"playAddr":"((?:[^"\\]|\\.)*)"');
     videoUrl ??= InstagramService.pick(
         text, r'"downloadAddr":"((?:[^"\\]|\\.)*)"');
     videoUrl = _cleanUrl(videoUrl);
-    if (videoUrl.isEmpty) throw PlatformMediaException('TIKTOK_BLOCKED');
+    if (videoUrl.isEmpty) return null;
 
     // Metadata from the same page, near the video data.
     final winStart = text.indexOf('playAddr');
