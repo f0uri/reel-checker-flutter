@@ -75,9 +75,29 @@ class ServerService {
   /// Ask the server to parse [url]. Returns the app's standard meta
   /// map on success, null on ANY failure (caller falls back to the
   /// in-app extractors). Never throws.
+  ///
+  /// Sleep handling (v4.3.2): SnapDeploy puts the free container to
+  /// sleep after 15 min idle, and a sleeping container answers API
+  /// calls with an INSTANT 503 HTML page — it does NOT hold the
+  /// request and wake up, so the 90 s timeout never got a chance and
+  /// every check after a sleep fell back to the (blocked) in-app
+  /// extractors. When the parse fails, wake the container through
+  /// SnapDeploy's public wake API, poll /health until it answers,
+  /// then retry the parse once.
   static Future<Map<String, dynamic>?> parseMedia(String url) async {
     final base = _serverUrl;
     if (base == null) return null;
+    var result = await _postParse(base, url);
+    if (result != null) return result;
+    if (await _wakeServer(base)) {
+      result = await _postParse(base, url);
+      if (result != null) return result;
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> _postParse(
+      String base, String url) async {
     try {
       final resp = await http
           .post(
@@ -114,5 +134,40 @@ class ServerService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Wake a sleeping SnapDeploy container and wait until /health
+  /// answers (up to ~90 s). Returns true when the server is up.
+  /// Only applies to *.containers.snapdeploy.app hosts; anything
+  /// else returns false immediately. Never throws.
+  static Future<bool> _wakeServer(String base) async {
+    try {
+      final host = Uri.tryParse(base)?.host ?? '';
+      if (!host.endsWith('.containers.snapdeploy.app')) return false;
+      final subdomain = host.split('.').first;
+      if (subdomain.isEmpty) return false;
+      try {
+        await http
+            .post(
+              Uri.parse(
+                  'https://snapdeploy.dev/api/public/wake/$subdomain'),
+              headers: {'Content-Type': 'application/json'},
+            )
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {
+        // Wake call failed — the container may still wake from
+        // another request, so poll /health anyway.
+      }
+      for (var i = 0; i < 18; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        try {
+          final resp = await http
+              .get(Uri.parse('$base/health'))
+              .timeout(const Duration(seconds: 5));
+          if (resp.statusCode == 200) return true;
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return false;
   }
 }
