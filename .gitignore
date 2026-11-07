@@ -1,0 +1,28 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+
+# Android
+android/local.properties
+android/app/debug.keystore
+android/app/build/
+
+# iOS (generated)
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
+ios/Pods/
+ios/.symlinks/
+
+# Launcher icons are generated on CI by tools/make_icons.py
+# (the GitHub connector cannot push binary files)
+android/app/src/main/res/mipmap-*/ic_launcher.png
+ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png
+ios/Runner/Assets.xcassets/LaunchImage.imageset/*.png
+
+# Gradle wrapper jar is downloaded on CI (see .github/workflows/build.yml)
+android/gradle/wrapper/gradle-wrapper.jar
