@@ -703,16 +703,10 @@ function parseShortcode(input) {
   return s ? s[1] : null;
 }
 
-/* روابط يوتيوب / تيك توك / فيسبوك — كتمشي ل checkMedia فالتطبيق */
-function isExternalVideoLink(input) {
-  if (!input) return false;
-  var v = input.trim();
-  return /^(?:https?:\/\/)?(?:www\.|m\.|vm\.|vt\.)?(youtube\.com|youtu\.be|tiktok\.com|facebook\.com|fb\.watch)\//i.test(v);
-}
-
 function showErr(code) {
   var msgs = {
     'REEL_NOT_FOUND': 'الريل ما تلقاش — تحقق من الرابط وعاود المحاولة.',
+    'NOT_INSTAGRAM': 'هاد التطبيق خاص بروابط إنستغرام فقط — الصق رابط ريل أو منشور من إنستغرام.',
     'NOT_A_VIDEO': 'هاد الرابط ماشي فيديو.',
     'VIDEO_URL_MISSING': 'ماقدرناش نجيبو الفيديو ديال هاد الريل — عاود المحاولة بعد شوية.',
     'REEL_TOO_LONG': 'الريل طويل بزاف.',
@@ -720,15 +714,7 @@ function showErr(code) {
     'INSTAGRAM_BLOCKED': 'إنستغرام حجب الطلب مؤقتاً — عاود المحاولة بعد شوية.',
     'INSTAGRAM_TIMEOUT': 'الطلب تأخر — عاود المحاولة.',
     'INSTAGRAM_UNREACHABLE': 'ما قدرناش نوصلو لإنستغرام — تحقق من الإنترنت وعاود المحاولة.',
-    'INSTAGRAM_ERROR': 'تعذر الوصول لإنستغرام — عاود المحاولة بعد شوية.',
-    'YOUTUBE_LOCKED': 'يوتيوب قفل الرابط — جرّب من جديد أو جرّب رابط آخر.',
-    'YOUTUBE_NOT_FOUND': 'فيديو يوتيوب ما تلقاش — تحقق من الرابط.',
-    'TIKTOK_BLOCKED': 'تيك توك حجب الطلب مؤقتاً — عاود المحاولة بعد شوية.',
-    'TIKTOK_NOT_FOUND': 'فيديو تيك توك ما تلقاش — تحقق من الرابط.',
-    'FACEBOOK_BLOCKED': 'فيسبوك حجب الطلب مؤقتاً — عاود المحاولة بعد شوية.',
-    'FACEBOOK_NOT_FOUND': 'فيديو فيسبوك ما تلقاش — تحقق من الرابط.',
-    'MEDIA_UNSUPPORTED': 'هاد الرابط ماشي مدعوم.',
-    'MEDIA_ERROR': 'تعذر تحميل هاد الرابط — عاود المحاولة بعد شوية.'
+    'INSTAGRAM_ERROR': 'تعذر الوصول لإنستغرام — عاود المحاولة بعد شوية.'
   };
   var el = document.getElementById('err');
   el.textContent = msgs[code] || 'تعذر الوصول لإنستغرام — عاود المحاولة بعد شوية.';
@@ -746,20 +732,11 @@ function check() {
   document.getElementById('dlBtn').disabled = false;
   document.getElementById('dlBtn').textContent = 'تنزيل الريل';
   var rawLink = document.getElementById('input').value.trim();
-  if (isExternalVideoLink(rawLink)) {
-    var btn = document.getElementById('checkBtn');
-    btn.disabled = true;
-    btn.textContent = 'كتحقق...';
-    if (window.AndroidBridge && AndroidBridge.checkMedia) {
-      AndroidBridge.checkMedia(rawLink);
-    } else {
-      btn.disabled = false;
-      btn.textContent = 'تحقق من الريل';
-      showErr('MEDIA_ERROR');
-    }
+  if (!code) {
+    if (rawLink) { showErr('NOT_INSTAGRAM'); }
+    else { showErr('REEL_NOT_FOUND'); }
     return;
   }
-  if (!code) { showErr('REEL_NOT_FOUND'); return; }
   var btn = document.getElementById('checkBtn');
   btn.disabled = true;
   btn.textContent = 'كتحقق...';
