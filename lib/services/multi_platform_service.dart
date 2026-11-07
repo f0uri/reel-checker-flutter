@@ -504,12 +504,14 @@ class MultiPlatformService {
 
   static String? _fbVideoFromHtml(String html) {
     final text = InstagramService.deepUnescape(html);
+    // Prefer the explicit HD stream when Facebook exposes it, then
+    // the og:video file, then the plain playable URL / sd source.
     var u = InstagramService.pick(
+        text, r'"playable_url_quality_hd":"((?:[^"\\]|\\.)*)"');
+    u ??= InstagramService.pick(
         text, r'<meta property="og:video:secure_url" content="([^"]+)"');
     u ??= InstagramService.pick(
         text, r'<meta property="og:video" content="([^"]+)"');
-    u ??= InstagramService.pick(
-        text, r'"playable_url_quality_hd":"((?:[^"\\]|\\.)*)"');
     u ??= InstagramService.pick(
         text, r'"playable_url":"((?:[^"\\]|\\.)*)"');
     u ??= InstagramService.pick(text, r'"hd_src":"((?:[^"\\]|\\.)*)"');
