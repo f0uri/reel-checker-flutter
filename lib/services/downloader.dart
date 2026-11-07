@@ -15,16 +15,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'instagram_service.dart';
-import 'multi_platform_service.dart';
 import 'platform.dart';
 
 class Downloader {
   static const int _connectTimeoutMs = 30000;
   static const int _readTimeoutMs = 60000;
-
-  static const String _chromeUa =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-      '(KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
   static Map<String, String> get _headers => {
         'User-Agent': InstagramService.userAgents[0],
@@ -32,43 +27,10 @@ class Downloader {
         'Accept-Language': 'en-US,en;q=0.9',
       };
 
-  /// Download headers per host: a TikTok video URL fetched with an
-  /// Instagram Referer is rejected by TikTok's CDN (403), so each
-  /// platform's files are fetched with that platform's Referer.
-  /// (That is why TikTok previews played but the download failed.)
-  /// TikTok downloads also carry the session cookies captured
-  /// during extraction (ttwid, msToken, ...) — the CDN rejects
-  /// cookie-less requests even with the right Referer.
+  /// Download headers: Instagram only (v4.4.0 removed the other
+  /// platforms) — every download is an Instagram CDN file, fetched
+  /// with the Instagram headers.
   static Map<String, String> _headersFor(String url) {
-    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
-    if (host.contains('tiktok') ||
-        host.contains('tiktokcdn') ||
-        host.contains('akamaized') ||
-        host.contains('bytecdn')) {
-      final headers = <String, String>{
-        'User-Agent': _chromeUa,
-        'Referer': 'https://www.tiktok.com/',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-      };
-      final cookies = MultiPlatformService.tikTokCookieHeader;
-      if (cookies.isNotEmpty) headers['Cookie'] = cookies;
-      return headers;
-    }
-    if (host.contains('googlevideo') || host.contains('youtube')) {
-      return {
-        'User-Agent': _chromeUa,
-        'Referer': 'https://www.youtube.com/',
-        'Accept-Language': 'en-US,en;q=0.9',
-      };
-    }
-    if (host.contains('facebook.com')) {
-      return {
-        'User-Agent': _chromeUa,
-        'Referer': 'https://www.facebook.com/',
-        'Accept-Language': 'en-US,en;q=0.9',
-      };
-    }
     return _headers;
   }
 
