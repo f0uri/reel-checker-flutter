@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>تنزيل ريلزات</title>
+<style>
+  /* واجهة iOS 26 — Liquid Glass: مادة زجاجية سائلة بلمعان طيفي،
+     أزرار كبسولة عائمة، زوايا متحدة المركز، حركة نابضية، وعنوان كبير. */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --accent1: #f43f8e;
+    --accent2: #e1306c;
+    --accent3: #f77737;
+    --spring: cubic-bezier(.34, 1.56, .64, 1);
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; color: #1c1c1e;
+    font-family: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+    background: #f5f5f7;
+    overflow-x: hidden;
+  }
+  /* خلفية داكنة عميقة مع هالات لونية حيّة تتحرك ببطء (أورورا) */
+  .aurora { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  .aurora::before, .aurora::after {
+    content: ""; position: absolute; border-radius: 50%;
+    filter: blur(70px); will-change: transform;
+  }
+  .aurora::before {
+    width: 130vw; height: 60vh; top: -22vh; right: -35vw;
+    background: radial-gradient(circle at 50% 50%, rgba(244, 63, 142, .28), rgba(225, 48, 108, .10) 55%, transparent 75%);
+    animation: drift1 26s ease-in-out infinite alternate;
+  }
+  .aurora::after {
+    width: 110vw; height: 55vh; bottom: -18vh; left: -30vw;
+    background: radial-gradient(circle at 50% 50%, rgba(247, 119, 55, .24), rgba(139, 92, 246, .14) 55%, transparent 75%);
+    animation: drift2 32s ease-in-out infinite alternate;
+  }
+  @keyframes drift1 { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-6vw, 4vh, 0) scale(1.12); } }
+  @keyframes drift2 { from { transform: translate3d(0, 0, 0) scale(1.05); } to { transform: translate3d(5vw, -3vh, 0) scale(.95); } }
+  /* لمعان طيفي خفيف يتحرك فوق الخلفية */
+  .sheen {
+    position: fixed; inset: -40%; pointer-events: none; z-index: 0;
+    background: conic-gradient(from 200deg at 50% 40%, transparent 0deg, rgba(244,63,142,.06) 40deg, transparent 90deg, rgba(247,119,55,.05) 200deg, transparent 260deg);
+    animation: sheen 24s linear infinite;
+  }
+  @keyframes sheen { to { transform: rotate(360deg); } }
+
+  .wrap { position: relative; z-index: 1; max-width: 560px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom)); }
+
+  /* عنوان كبير بأسلوب iOS — Large Title */
+  header { margin: 14px 6px 22px; animation: riseIn .6s var(--ease-out) both; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+    color: rgba(0, 0, 0, .60);
+    padding: 6px 12px; border-radius: 999px;
+    background: rgba(255, 255, 255, .75);
+    border: 1px solid rgba(0, 0, 0, .08);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
+  }
+  .eyebrow::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent1), var(--accent3));
+    box-shadow: 0 0 10px rgba(244, 63, 142, .9);
+  }
+  h1 {
+    margin: 14px 0 6px; font-size: 34px; line-height: 1.15; font-weight: 800; letter-spacing: -.5px;
+    background: linear-gradient(180deg, #1c1c1e 20%, rgba(28,28,30,.72));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  @keyframes riseIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes popIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .anim-1 { animation: riseIn .55s var(--ease-out) .05s both; }
+  .anim-2 { animation: riseIn .55s var(--ease-out) .12s both; }
+  .anim-3 { animation: riseIn .55s var(--ease-out) .19s both; }
+
+  /* ===== Liquid Glass: الزجاج السائل — للعناصر التفاعلية فقط =====
+     لمعان طيفي على الحافة العليا + حد متدرج + بلور مشبع + ظل عميق */
+  .liquid {
+    background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.68) 45%, rgba(255,255,255,.78));
+    -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid rgba(0, 0, 0, .06);
+    background-clip: padding-box;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.95),
+      inset 0 -1px 0 rgba(0,0,0,.04),
+      inset 1px 0 0 rgba(255,255,255,.7),
+      0 20px 44px rgba(0, 0, 0, .10);
+    position: relative;
+  }
+  .liquid::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(115deg, rgba(255,255,255,.9) 0%, transparent 22%, transparent 78%, rgba(244,63,142,.08) 100%);
+    opacity: .55;
+  }
+
+  /* زر التحديث — كبسولة ذهبية فاخرة مع لمعة كتسري + توهج */
+  #updateBtn {
+    display: none; position: relative; overflow: hidden;
+    width: 100%; margin-bottom: 16px; padding: 15px 18px;
+    border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(255, 214, 130, .65);
+    background: linear-gradient(135deg, #b8860b 0%, #f5c542 28%, #ffdf8a 50%, #e8a91c 72%, #9c6a05 100%);
+    color: #3a2503; font-size: 15px; font-weight: 800;
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,.75),
+      inset 0 -2px 6px rgba(120, 70, 0, .35),
+      0 0 24px rgba(245, 197, 66, .45),
+      0 12px 30px rgba(0,0,0,.4);
+    transition: transform .35s var(--spring), opacity .3s ease;
+  }
+  #updateBtn:active { transform: scale(.96); }
+  /* لمعة ذهبية كتسري على الزر */
+  #updateBtn .upd-sheen {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.65) 50%, transparent 70%);
+    background-size: 250% 100%; background-position: 120% 0;
+    animation: updSweep 2.8s ease-in-out infinite;
+  }
+  @keyframes updSweep {
+    0% { background-position: 120% 0; }
+    55% { background-position: -120% 0; }
+    100% { background-position: -120% 0; }
+  }
+  /* شريط التقدم داخل الزر */
+  #updateBtn .upd-fill {
+    position: absolute; top: 0; bottom: 0; right: 0; width: 0%;
+    background: linear-gradient(135deg, rgba(255,255,255,.45), rgba(255,255,255,.18));
+    border-radius: 999px; transition: width .25s ease;
+  }
+  #updateBtn .upd-fill.indeterminate {
+    width: 40% !important;
+    animation: updSlide 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes updSlide { from { right: 0; } to { right: 60%; } }
+  #updateBtn .upd-label { position: relative; z-index: 2; }
+  #updateBtn.downloading { animation: updGlow 1.6s ease-in-out infinite alternate; }
+  @keyframes updGlow {
+    from { box-shadow: inset 0 1.5px 0 rgba(255,255,255,.75), 0 0 18px rgba(245, 197, 66, .35), 0 12px 30px rgba(0,0,0,.4); }
+    to { box-shadow: inset 0 1.5px 0 rgba(255,255,255,.75), 0 0 34px rgba(245, 197, 66, .65), 0 12px 30px rgba(0,0,0,.4); }
+  }
+  .upd-status { display: none; margin: 0 4px 14px; text-align: center; color: rgba(0,0,0,.75); font-size: 14px; }
+
+  /* تبديل الوضع: ريل / حساب — segmented control زجاجي */
+  .mode-tabs {
+    display: flex; gap: 6px; margin-bottom: 14px; padding: 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .05);
+    border: 1px solid rgba(0, 0, 0, .06);
+    box-shadow: inset 0 2px 8px rgba(0,0,0,.05);
+  }
+  .mode-tabs button {
+    flex: 1; padding: 10px 0; font-size: 15px; font-weight: 700;
+    border: none; border-radius: 999px; cursor: pointer;
+    background: transparent; color: rgba(0, 0, 0, .55);
+    transition: all .35s var(--spring);
+  }
+  .mode-tabs button.active {
+    background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,255,255,.85));
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    color: #1c1c1e;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,1), 0 4px 14px rgba(0,0,0,.12);
+  }
+  .mode-tabs button:active { transform: scale(.96); }
+
+  /* لوحة التحكم الزجاجية — زوايا متحدة المركز: الخارجي 32، الداخلي 20 */
+  .glass {
+    border-radius: 32px;
+    padding: 16px;
+  }
+  .input-wrap { position: relative; }
+  .input-wrap input { padding-right: 48px; }
+  #clearBtn {
+    display: none; position: absolute; top: 50%; right: 9px;
+    transform: translateY(-50%);
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, .12);
+    background: rgba(255, 255, 255, .75);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 2px 8px rgba(0,0,0,.08);
+    color: #333; font-size: 18px; line-height: 1; font-weight: 700;
+    padding: 0; cursor: pointer; z-index: 2;
+    transition: transform .35s var(--spring), background .25s ease, opacity .25s ease;
+  }
+  #clearBtn:active { transform: translateY(-50%) scale(.88); background: rgba(0, 0, 0, .08); }
+
+  input {
+    width: 100%; padding: 16px 18px; font-size: 16px; border-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, .10);
+    background: #ffffff;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: inset 0 2px 8px rgba(0,0,0,.05), inset 0 1px 0 rgba(255,255,255,1);
+    color: #1c1c1e; direction: ltr; text-align: left; outline: none;
+    transition: border-color .3s ease, box-shadow .3s ease, background .3s ease;
+  }
+  input::placeholder { color: rgba(0, 0, 0, .40); }
+  input:focus {
+    border-color: rgba(244, 63, 142, .75);
+    background: #ffffff;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,.05), 0 0 0 4px rgba(244, 63, 142, .18), 0 0 28px rgba(244, 63, 142, .28);
+  }
+
+  /* الأزرار — كبسولات بحركة نابضية */
+  button.main {
+    width: 100%; margin-top: 14px; padding: 16px; font-size: 17px; font-weight: 800; letter-spacing: .2px;
+    border: none; border-radius: 999px; color: #fff; cursor: pointer;
+    background: linear-gradient(135deg, #ff5da2 0%, #e1306c 45%, #f77737 100%);
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,.5),
+      inset 0 -2px 6px rgba(0,0,0,.18),
+      0 12px 30px rgba(225, 48, 108, .45),
+      0 2px 8px rgba(0,0,0,.3);
+    transition: transform .4s var(--spring), opacity .25s ease, box-shadow .3s ease, filter .3s ease;
+  }
+  button.main:active { transform: scale(.96); filter: brightness(1.1); }
+  button.main:disabled { opacity: .55; transform: scale(.99); }
+
+  button.secondary {
+    width: 100%; margin-top: 12px; padding: 15px; font-size: 16px; font-weight: 700;
+    border-radius: 999px; cursor: pointer; color: #1c1c1e;
+    border: 1px solid rgba(0, 0, 0, .10);
+    background: rgba(255, 255, 255, .78);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 10px 24px rgba(0, 0, 0, .10);
+    transition: transform .4s var(--spring), opacity .25s ease, background .25s ease;
+  }
+  button.secondary:active { transform: scale(.96); background: rgba(0, 0, 0, .05); }
+  button.secondary:disabled { opacity: .55; }
+
+  /* رسالة الخطأ — شريحة (chip) حمراء ناعمة */
+  .err {
+    display: none; margin: 16px auto 0; width: fit-content; max-width: 100%;
+    padding: 10px 18px; border-radius: 999px; text-align: center;
+    color: #c81e3a; font-size: 14px; font-weight: 600;
+    background: rgba(255, 70, 100, .10);
+    border: 1px solid rgba(255, 120, 140, .40);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.10);
+    animation: popIn .4s var(--spring) both;
+  }
+
+  /* بطاقة الحساب — صورة دائرية + الاسم + البايو + الأعداد */
+  .account-card {
+    display: none; margin-top: 22px; border-radius: 28px; overflow: hidden;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, .08);
+    box-shadow: 0 24px 56px rgba(0, 0, 0, .12);
+    padding: 22px 18px 18px; text-align: center;
+    animation: popIn .5s var(--spring) both;
+  }
+  .account-card img.avatar {
+    width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+    border: 3px solid rgba(255, 255, 255, .25);
+    box-shadow: 0 0 0 4px rgba(244, 63, 142, .35), 0 10px 26px rgba(0,0,0,.5);
+    background: rgba(255,255,255,.08);
+  }
+  /* بديل الصورة إلا ما تحملاتش: دائرة فيها أول حرف من الاسم */
+  .account-card .avatar-fallback {
+    display: none; width: 96px; height: 96px; margin: 0 auto; border-radius: 50%;
+    align-items: center; justify-content: center;
+    font-size: 42px; font-weight: 800; color: #fff; direction: ltr;
+    background: linear-gradient(135deg, #ff5da2 0%, #e1306c 45%, #f77737 100%);
+    border: 3px solid rgba(255, 255, 255, .25);
+    box-shadow: 0 0 0 4px rgba(244, 63, 142, .35), 0 10px 26px rgba(0,0,0,.5);
+  }
+  /* شبكة المنشورات — 3 أعمدة، مربعات */
+  .account-card .acc-posts {
+    display: none; margin-top: 18px; padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, .10);
+  }
+  .account-card .acc-posts-title {
+    font-size: 13px; font-weight: 700; color: rgba(0, 0, 0, .60);
+    margin: 0 0 10px; text-align: right;
+  }
+  .account-card .acc-posts-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  }
+  .account-card .acc-post {
+    position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden;
+    background: rgba(0, 0, 0, .06); cursor: pointer; padding: 0; border: none;
+  }
+  .account-card .acc-post img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .account-card .acc-post .acc-post-play {
+    position: absolute; top: 6px; left: 6px; font-size: 13px; color: #fff;
+    text-shadow: 0 1px 6px rgba(0,0,0,.8); pointer-events: none;
+  }
+  .account-card .acc-post:active { transform: scale(.96); }
+  .account-card .acc-posts-note {
+    display: none; margin: 14px 0 0; font-size: 13px; color: rgba(0, 0, 0, .55);
+  }
+  .account-card .acc-name { margin: 12px 0 2px; font-size: 19px; font-weight: 800; }
+  .account-card .acc-user { margin: 0; font-size: 14px; color: rgba(0, 0, 0, .55); direction: ltr; }
+  .account-card .acc-bio {
+    margin: 12px 0 0; font-size: 14.5px; line-height: 1.7; color: rgba(0, 0, 0, .80);
+    white-space: pre-line; word-break: break-word;
+  }
+  .account-card .acc-stats {
+    display: flex; margin-top: 18px; padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, .10);
+  }
+  .account-card .acc-stat { flex: 1; }
+  .account-card .acc-stat + .acc-stat { border-right: 1px solid rgba(0, 0, 0, .08); }
+  .account-card .acc-num { font-size: 18px; font-weight: 800; direction: ltr; }
+  .account-card .acc-exact { font-size: 11px; color: rgba(0, 0, 0, .45); direction: ltr; margin-top: 1px; }
+  .account-card .acc-label { font-size: 12.5px; color: rgba(0, 0, 0, .55); margin-top: 2px; }
+  .account-card .acc-note {
+    margin: 14px 0 0; font-size: 13px; color: #8a5a00;
+    background: rgba(255, 190, 80, .18);
+    border: 1px solid rgba(255, 170, 40, .45);
+    border-radius: 999px; padding: 8px 14px; display: inline-block;
+  }
+
+  /* بطاقة الفيديو — سطح داكن صلب (المحتوى ما كيتغطاش بالزجاج)،
+     والفيديو هو البطل */
+  .card {
+    display: none; margin-top: 22px; border-radius: 28px; overflow: hidden;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, .08);
+    box-shadow: 0 24px 56px rgba(0, 0, 0, .12), 0 0 0 1px rgba(0,0,0,.04);
+    animation: popIn .5s var(--spring) both;
+  }
+  .card video { width: 100%; display: block; background: #000; max-height: 70vh; }
+  /* v3.5: معاينة الصورة فبطاقة الفحص — بدل إطار فيديو أسود للمنشورات ديال الصور */
+  .card img.photo-preview { width: 100%; display: block; background: #000; max-height: 70vh; object-fit: contain; }
+  .card .pad { padding: 16px; background: linear-gradient(180deg, rgba(0,0,0,.02), transparent); }
+  .card .main { margin-top: 0; }
+  .dl-status { display: none; margin-top: 12px; text-align: center; color: rgba(0,0,0,.75); font-size: 14px; }
+  .dl-status.err-dl { color: #c81e3a; }
+
+  /* زر الفحص اليدوي من التحديث — دائرة زجاجية عائمة أسفل اليسار */
+  #manualCheckBtn {
+    position: fixed; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; z-index: 50;
+    width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, .10);
+    background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(255,255,255,.78));
+    -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,1),
+      inset 0 -1px 0 rgba(0,0,0,.04),
+      0 10px 26px rgba(0, 0, 0, .15),
+      0 0 18px rgba(245, 197, 66, .35);
+    color: #b8860b; font-size: 26px; line-height: 1; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .4s var(--spring), box-shadow .3s ease, opacity .25s ease;
+  }
+  #manualCheckBtn:active { transform: scale(.88); }
+  #manualCheckBtn.checking { animation: spinOnce 1s linear infinite; opacity: .7; }
+  @keyframes spinOnce { to { transform: rotate(360deg); } }
+
+  /* رسالة خفيفة (toast) — شريحة زجاجية أسفل الوسط، كتختفي بوحدها */
+  .toast {
+    display: none; position: fixed; bottom: calc(84px + env(safe-area-inset-bottom)); left: 50%;
+    transform: translateX(-50%); z-index: 60;
+    max-width: calc(100vw - 100px); padding: 9px 16px; border-radius: 999px;
+    text-align: center; font-size: 13.5px; font-weight: 700; white-space: nowrap;
+    color: #1c1c1e; background: rgba(255, 255, 255, .88);
+    border: 1px solid rgba(120, 205, 145, .45);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 12px 30px rgba(0,0,0,.5);
+    animation: toastIn .4s var(--spring) both;
+  }
+  .toast.out { animation: toastOut .3s ease both; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(12px); } }
+
+  /* سطر معرف الجهاز — رمادي صغير جداً أسفل الشاشة، بالضغطة كيتنسخ كامل */
+  .device-id {
+    margin-top: 26px; text-align: center; font-size: 11px; color: rgba(0,0,0,.38);
+    cursor: pointer; user-select: none; letter-spacing: .2px;
+  }
+
+  /* شاشة الإيقاف عن بعد — بطاقة زجاجية فاخرة عائمة (v2.8) — كتغطي كلشي وما كتتسدش */
+  .block-overlay {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(245, 245, 247, .55);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+    align-items: center; justify-content: center; padding: 28px;
+  }
+  .block-overlay.open { display: flex; }
+  .block-overlay.open .block-card { animation: blockCardIn .45s cubic-bezier(.22, 1.4, .36, 1) both, blockFloat 5s ease-in-out .5s infinite; }
+  .block-card {
+    text-align: center; max-width: 340px; width: 100%;
+    padding: 34px 26px 30px; border-radius: 30px;
+    background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(255,255,255,.55) 45%, rgba(255,255,255,.68));
+    -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid rgba(212, 175, 55, .45);
+    box-shadow: 0 24px 60px rgba(0,0,0,.16), 0 0 0 1px rgba(255,255,255,.5) inset, 0 0 32px rgba(212, 175, 55, .18);
+  }
+  @keyframes blockCardIn {
+    from { opacity: 0; transform: translateY(18px) scale(.94); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes blockFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+  }
+  .block-mark {
+    width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 800; color: #fff;
+    background: linear-gradient(135deg, #b8860b 0%, #f5c542 28%, #ffdf8a 50%, #e8a91c 72%, #9c6a05 100%);
+    border: 1px solid rgba(255,255,255,.6);
+    box-shadow: 0 12px 28px rgba(184, 134, 11, .45), 0 0 0 4px rgba(255,255,255,.35);
+  }
+  .block-title { font-size: 21px; font-weight: 800; color: #1c1c1e; margin-bottom: 12px; letter-spacing: .5px; }
+  .block-title::after { content: ''; display: block; width: 44px; height: 2px; margin: 12px auto 0; border-radius: 2px; background: linear-gradient(90deg, #b8860b, #ffdf8a, #e8a91c); }
+  .block-msg { font-size: 15.5px; line-height: 1.8; color: rgba(0,0,0,.62); white-space: pre-line; }
+
+  /* أزرار البايو: نسخ البايو + تحميل الصورة */
+  .acc-actions {
+    display: flex; gap: 8px; margin-top: 14px;
+  }
+  .acc-action {
+    flex: 1; padding: 10px 8px; font-size: 13.5px; font-weight: 700;
+    border-radius: 999px; cursor: pointer; color: #1c1c1e;
+    border: 1px solid rgba(0, 0, 0, .10);
+    background: rgba(255, 255, 255, .78);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 6px 16px rgba(0, 0, 0, .08);
+    transition: transform .35s var(--spring), background .25s ease;
+  }
+  .acc-action:active { transform: scale(.95); background: rgba(0, 0, 0, .05); }
+
+  /* زر "عرض المزيد" ديال المنشورات */
+  .acc-load-more {
+    display: none; width: 100%; margin-top: 12px; padding: 12px; font-size: 14.5px; font-weight: 700;
+    border-radius: 999px; cursor: pointer; color: #1c1c1e;
+    border: 1px solid rgba(0, 0, 0, .10);
+    background: rgba(255, 255, 255, .78);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 6px 16px rgba(0, 0, 0, .08);
+    transition: transform .35s var(--spring), opacity .25s ease;
+  }
+  .acc-load-more:active { transform: scale(.96); }
+  .acc-load-more:disabled { opacity: .55; }
+
+  /* ورقة سفلية (bottom sheet) ديال المنشور — معاينة + تنزيل / فتح */
+  .sheet-overlay {
+    display: none; position: fixed; inset: 0; z-index: 70;
+    background: rgba(0, 0, 0, .35);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    align-items: flex-end; justify-content: center;
+  }
+  .sheet-overlay.open { display: flex; }
+  .sheet {
+    width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
+    background: #ffffff; border-radius: 28px 28px 0 0;
+    border: 1px solid rgba(0, 0, 0, .08);
+    box-shadow: 0 -12px 44px rgba(0, 0, 0, .25);
+    padding: 12px 18px calc(20px + env(safe-area-inset-bottom));
+    animation: sheetUp .45s var(--spring) both;
+  }
+  @keyframes sheetUp { from { opacity: 0; transform: translateY(60px); } to { opacity: 1; transform: translateY(0); } }
+  .sheet .sheet-grip {
+    width: 40px; height: 5px; border-radius: 999px; margin: 2px auto 12px;
+    background: rgba(0, 0, 0, .18);
+  }
+  .sheet .sheet-close {
+    position: absolute; top: 14px; left: 14px;
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, .12); background: rgba(0, 0, 0, .06);
+    color: #333; font-size: 18px; line-height: 1; font-weight: 700; padding: 0;
+  }
+  .sheet { position: relative; }
+  .sheet img.sheet-preview {
+    width: 100%; border-radius: 18px; display: block; background: #000;
+    max-height: 55vh; object-fit: contain;
+  }
+  .sheet .sheet-play {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 44px; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.8); pointer-events: none;
+  }
+  .sheet .sheet-media-wrap { position: relative; }
+  .sheet .main { margin-top: 14px; }
+  .sheet .secondary { margin-top: 10px; }
+  .sheet .dl-status { margin-top: 12px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aurora::before, .aurora::after, .sheen { animation: none; }
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="aurora"></div>
+<div class="sheen"></div>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Reels</span>
+    <h1>تنزيل ريلزات</h1>
+  </header>
+
+  <button id="updateBtn" class="anim-1" onclick="updateBtnTap()"><span class="upd-fill" id="updFill"></span><span class="upd-sheen"></span><span class="upd-label" id="updLabel">تحديث</span></button>
+  <div class="upd-status" id="updStatus"></div>
+
+  <div class="glass liquid anim-2">
+    <div class="mode-tabs">
+      <button type="button" id="tabReel" class="active" onclick="setMode('reel')">ريل</button>
+      <button type="button" id="tabAccount" onclick="setMode('account')">حساب</button>
+    </div>
+    <div class="input-wrap">
+      <input id="input" type="text" placeholder="لصق رابط الريل أو المنشور هنا" autocomplete="off" oninput="updateClearBtn()">
+      <button id="clearBtn" type="button" onclick="clearInput()" aria-label="مسح الرابط">×</button>
+    </div>
+    <button class="main" id="checkBtn" onclick="check()">تحقق من الريل</button>
+  </div>
+
+  <div class="err" id="err"></div>
+
+  <div class="account-card" id="accountCard">
+    <img class="avatar" id="accAvatar" alt="" referrerpolicy="no-referrer" onerror="avatarFallback()">
+    <div class="avatar-fallback" id="accAvatarFallback"></div>
+    <div class="acc-name" id="accName"></div>
+    <p class="acc-user" id="accUser"></p>
+    <p class="acc-bio" id="accBio"></p>
+    <div class="acc-actions">
+      <button type="button" class="acc-action" id="copyBioBtn" onclick="copyBio()">نسخ البايو</button>
+      <button type="button" class="acc-action" id="dlPicBtn" onclick="downloadProfilePic()">تحميل الصورة</button>
+    </div>
+    <div class="acc-stats">
+      <div class="acc-stat"><div class="acc-num" id="accPosts"></div><div class="acc-exact" id="accPostsExact"></div><div class="acc-label">منشورات</div></div>
+      <div class="acc-stat"><div class="acc-num" id="accFollowers"></div><div class="acc-exact" id="accFollowersExact"></div><div class="acc-label">متابعون</div></div>
+      <div class="acc-stat"><div class="acc-num" id="accFollowing"></div><div class="acc-exact" id="accFollowingExact"></div><div class="acc-label">يتابع</div></div>
+    </div>
+    <div class="acc-note" id="accNote" style="display:none">هاد الحساب خاص — المنشورات ما كتبانش</div>
+    <div class="acc-posts" id="accPostsWrap">
+      <p class="acc-posts-title">المنشورات</p>
+      <div class="acc-posts-grid" id="accPostsGrid"></div>
+      <button type="button" class="acc-load-more" id="accLoadMoreBtn" onclick="loadMorePosts()">عرض المزيد</button>
+    </div>
+    <div class="acc-posts-note" id="accPostsNote"></div>
+  </div>
+
+  <div class="card" id="card">
+    <video id="player" controls playsinline poster=""></video>
+    <img id="photoPreview" class="photo-preview" style="display:none" alt="" referrerpolicy="no-referrer">
+    <div class="pad">
+      <button class="main" id="dlBtn" onclick="downloadReel()">تنزيل الريل</button>
+      <div class="dl-status" id="dlStatus"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ورقة المنشور: معاينة كبيرة + تنزيل / فتح في إنستغرام -->
+<div class="sheet-overlay" id="postSheetOverlay" onclick="if (event.target === this) closePostSheet()">
+  <div class="sheet">
+    <div class="sheet-grip"></div>
+    <button type="button" class="sheet-close" onclick="closePostSheet()" aria-label="إغلاق">×</button>
+    <div class="sheet-media-wrap">
+      <img class="sheet-preview" id="postSheetImg" alt="" referrerpolicy="no-referrer">
+      <span class="sheet-play" id="postSheetPlay" style="display:none">▶</span>
+    </div>
+    <button class="main" id="postDlBtn" onclick="downloadCurrentPost()">تنزيل</button>
+    <button class="secondary" onclick="openCurrentPost()">فتح في إنستغرام</button>
+    <div class="dl-status" id="postDlStatus"></div>
+  </div>
+</div>
+
+<!-- زر الفحص اليدوي من التحديث — أسفل اليسار + رسالة خفيفة -->
+<button id="manualCheckBtn" type="button" onclick="manualCheck()" aria-label="التحقق من التحديث">⟳</button>
+<div class="toast" id="toast"></div>
+
+<!-- شاشة الإيقاف عن بعد — كتغطي كلشي وما كتتسدش -->
+<div class="block-overlay" id="blockOverlay">
+  <div class="block-card">
+    <div class="block-mark">!</div>
+    <div class="block-title">التطبيق متوقف</div>
+    <div class="block-msg" id="blockMsg">صلي على النبي ﷺ واستغفر الله.
+لقد تم حظرك من استخدام التطبيق من طرف المالك.</div>
+  </div>
+</div>
+
+<script>
+var current = null;
+var pendingUpdateUrl = null;
+var mode = 'reel'; /* 'reel' | 'account' */
+var updateState = 'idle'; /* idle | downloading | downloaded */
+var updateDownloaded = false;
+/* الحساب الحالي: البايو والصورة للنسخ/التحميل، والمنشورات للتمرير */
+var currentProfile = null; /* {username, bio, picUrl, avatarOk} */
+var accountPosts = []; /* منشورات الحساب المعروضة (shortcode, thumbUrl, isVideo, videoUrl) */
+var accountHasMore = false;
+var loadingMore = false;
+var currentPost = null; /* المنشور المفتوح فالورقة السفلية */
+
+/* ---- صوت نقرات فخم بحال نقرات الآيفون (v3.3): مولّد بالـ Web Audio،
+   بلا أي ملف صوتي ولا شبكة — نقرة قصيرة (~40ms): دفقة ضجيج مفلترة +
+   نغمة عالية قصيرة مع تلاشي سريع. كيتشغل على كل ضغطة زر. إلا Web Audio
+   ما كاينش، كيسكت بلا ما يطيح ولا يوري أي خطأ. ---- */
+var tapCtx = null;
+function playTap() {
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!tapCtx) tapCtx = new AC();
+    if (tapCtx.state === 'suspended') tapCtx.resume();
+    var t = tapCtx.currentTime;
+    /* 1) دفقة ضجيج قصيرة مفلترة (جسم النقرة) */
+    var len = Math.floor(tapCtx.sampleRate * 0.03);
+    var buf = tapCtx.createBuffer(1, len, tapCtx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    var src = tapCtx.createBufferSource();
+    src.buffer = buf;
+    var bp = tapCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2800;
+    bp.Q.value = 1.1;
+    var g1 = tapCtx.createGain();
+    g1.gain.setValueAtTime(0.22, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    src.connect(bp); bp.connect(g1); g1.connect(tapCtx.destination);
+    src.start(t); src.stop(t + 0.04);
+    /* 2) نغمة عالية قصيرة (حدة النقرة) */
+    var osc = tapCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 5200;
+    var g2 = tapCtx.createGain();
+    g2.gain.setValueAtTime(0.10, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+    osc.connect(g2); g2.connect(tapCtx.destination);
+    osc.start(t); osc.stop(t + 0.03);
+  } catch (e) { /* بلا صوت — بلا خطأ */ }
+}
+/* ضغطة وحدة على أي زر (منها بلاطات المنشورات اللي كتخلق ديناميكياً)
+   ولا على خلفية الورقة السفلية = نقرة */
+document.addEventListener('click', function (e) {
+  try {
+    if (e.target && e.target.closest && e.target.closest('button, .sheet-overlay')) playTap();
+  } catch (err) { /* بلا صوت */ }
+});
+
+function updateClearBtn() {
+  var input = document.getElementById('input');
+  document.getElementById('clearBtn').style.display =
+    (input.value && input.value.trim().length > 0) ? 'block' : 'none';
+}
+
+/* تبديل الوضع: ريل / حساب */
+function setMode(m) {
+  if (m === mode) return;
+  mode = m;
+  document.getElementById('tabReel').classList.toggle('active', m === 'reel');
+  document.getElementById('tabAccount').classList.toggle('active', m === 'account');
+  var input = document.getElementById('input');
+  var btn = document.getElementById('checkBtn');
+  document.getElementById('err').style.display = 'none';
+  document.getElementById('card').style.display = 'none';
+  document.getElementById('accountCard').style.display = 'none';
+  document.getElementById('dlStatus').style.display = 'none';
+  if (m === 'account') {
+    input.placeholder = 'اسم المستخدم أو رابط الحساب';
+    btn.textContent = 'بحث عن الحساب';
+  } else {
+    input.placeholder = 'لصق رابط الريل هنا';
+    btn.textContent = 'تحقق من الريل';
+  }
+  btn.disabled = false;
+  try { input.focus(); } catch (e) {}
+}
+
+/* زر X: كيمسح الرابط، كيخفي الفيديو وأي رسالة، وكيرجع التركيز للخانة */
+function clearInput() {
+  var input = document.getElementById('input');
+  input.value = '';
+  current = null;
+  currentProfile = null;
+  accountPosts = [];
+  accountHasMore = false;
+  closePostSheet();
+  updateClearBtn();
+  document.getElementById('card').style.display = 'none';
+  document.getElementById('accountCard').style.display = 'none';
+  document.getElementById('err').style.display = 'none';
+  document.getElementById('dlStatus').style.display = 'none';
+  document.getElementById('updStatus').style.display = 'none';
+  var player = document.getElementById('player');
+  try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
+  var checkBtn = document.getElementById('checkBtn');
+  checkBtn.disabled = false;
+  checkBtn.textContent = mode === 'account' ? 'بحث عن الحساب' : 'تحقق من الريل';
+  var dlBtn = document.getElementById('dlBtn');
+  dlBtn.disabled = false;
+  dlBtn.textContent = 'تنزيل الريل';
+  input.focus();
+}
+
+function parseShortcode(input) {
+  if (!input) return null;
+  var value = input.trim();
+  if (/^[A-Za-z0-9_-]{6,20}$/.test(value)) return value;
+  var m = /instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]{6,20})/i.exec(value);
+  if (m) return m[1];
+  var s = /^(?:https?:\/\/)?(?:www\.)?instagr\.am\/p\/([A-Za-z0-9_-]{6,20})/i.exec(value);
+  return s ? s[1] : null;
+}
+
+function showErr(code) {
+  var msgs = {
+    'REEL_NOT_FOUND': 'الريل ما تلقاش — تحقق من الرابط وعاود المحاولة.',
+    'NOT_A_VIDEO': 'هاد الرابط ماشي فيديو.',
+    'REEL_TOO_LONG': 'الريل طويل بزاف.',
+    'FULL_IMAGE_UNAVAILABLE': 'ما قدرناش نجيبو الصورة كاملة — المنشور يقدر يكون قديم شوية، جرّب منشور جديد.',
+    'INSTAGRAM_BLOCKED': 'إنستغرام حجب الطلب مؤقتاً — عاود المحاولة بعد شوية.',
+    'INSTAGRAM_TIMEOUT': 'الطلب تأخر — عاود المحاولة.',
+    'INSTAGRAM_UNREACHABLE': 'ما قدرناش نوصلو لإنستغرام — تحقق من الإنترنت وعاود المحاولة.',
+    'INSTAGRAM_ERROR': 'تعذر الوصول لإنستغرام — عاود المحاولة بعد شوية.'
+  };
+  var el = document.getElementById('err');
+  el.textContent = msgs[code] || 'تعذر الوصول لإنستغرام — عاود المحاولة بعد شوية.';
+  el.style.display = 'block';
+}
+
+function check() {
+  if (mode === 'account') { searchAccount(); return; }
+  var code = parseShortcode(document.getElementById('input').value);
+  document.getElementById('err').style.display = 'none';
+  document.getElementById('card').style.display = 'none';
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('player').style.display = 'block';
+  document.getElementById('dlStatus').style.display = 'none';
+  document.getElementById('dlBtn').disabled = false;
+  document.getElementById('dlBtn').textContent = 'تنزيل الريل';
+  if (!code) { showErr('REEL_NOT_FOUND'); return; }
+  var btn = document.getElementById('checkBtn');
+  btn.disabled = true;
+  btn.textContent = 'كتحقق...';
+  if (window.AndroidBridge && AndroidBridge.checkReel) {
+    AndroidBridge.checkReel(code);
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'تحقق من الريل';
+    showErr('INSTAGRAM_ERROR');
+  }
+}
+
+function onReelResult(jsonString) {
+  var btn = document.getElementById('checkBtn');
+  btn.disabled = false;
+  btn.textContent = 'تحقق من الريل';
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) { showErr('INSTAGRAM_ERROR'); return; }
+  if (!r.ok) { showErr(r.error || 'INSTAGRAM_ERROR'); return; }
+  current = r;
+  document.getElementById('dlStatus').style.display = 'none';
+  document.getElementById('dlBtn').disabled = false;
+  var player = document.getElementById('player');
+  var photo = document.getElementById('photoPreview');
+  if (r.mediaType === 'image' || r.mediaType === 'carousel') {
+    /* v3.5: منشور صورة / ألبوم — معاينة الصورة بدل إطار فيديو أسود */
+    player.removeAttribute('src');
+    player.style.display = 'none';
+    var firstImg = (r.imageUrls && r.imageUrls.length > 0 ? r.imageUrls[0] : '') || r.thumbUrl || '';
+    photo.src = firstImg;
+    photo.style.display = 'block';
+    document.getElementById('dlBtn').textContent = r.mediaType === 'carousel'
+      ? 'تنزيل الصور (' + (r.imageUrls ? r.imageUrls.length : 0) + ')'
+      : 'تنزيل الصورة';
+  } else {
+    photo.style.display = 'none';
+    player.style.display = 'block';
+    player.poster = r.thumbUrl || '';
+    player.src = r.videoUrl;
+    document.getElementById('dlBtn').textContent = 'تنزيل الريل';
+  }
+  var card = document.getElementById('card');
+  card.style.display = 'block';
+  card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+}
+
+/* ---- بحث عن حساب: الاسم، البايو، الصورة، الأعداد ---- */
+function parseUsername(input) {
+  if (!input) return null;
+  var v = input.trim();
+  v = v.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '');
+  v = v.split('/')[0].split('?')[0];
+  v = v.replace(/^@/, '').trim();
+  return /^[A-Za-z0-9._]{1,30}$/.test(v) && v.charAt(0) !== '.' && v.charAt(v.length - 1) !== '.' && v.indexOf('..') < 0 ? v : null;
+}
+
+function formatShort(n) {
+  n = Number(n) || 0;
+  if (n >= 1000000000) return (n / 1000000000).toFixed(1).replace(/\.0$/, '') + 'B';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(n);
+}
+
+function formatExact(n) {
+  n = Number(n) || 0;
+  return n.toLocaleString('en-US');
+}
+
+function searchAccount() {
+  var user = parseUsername(document.getElementById('input').value);
+  document.getElementById('err').style.display = 'none';
+  document.getElementById('accountCard').style.display = 'none';
+  document.getElementById('card').style.display = 'none';
+  if (!user) {
+    var el = document.getElementById('err');
+    el.textContent = 'الحساب غير موجود أو خاص';
+    el.style.display = 'block';
+    return;
+  }
+  var btn = document.getElementById('checkBtn');
+  btn.disabled = true;
+  btn.textContent = 'كنقلب على الحساب...';
+  if (window.AndroidBridge && AndroidBridge.searchAccount) {
+    AndroidBridge.searchAccount(user);
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'بحث عن الحساب';
+    var el2 = document.getElementById('err');
+    el2.textContent = 'عاود المحاولة.';
+    el2.style.display = 'block';
+  }
+}
+
+/* الحروف المزخرفة (𝐑𝐞𝐚𝐥…) من بلوك Mathematical Alphanumeric Symbols
+   ما كايناش فخطوط أندرويد وكتبان مربعات فارغة — نردها لحروف عادية
+   باش البايو يبقى مقري. الإيموجي العادي كيبقى كيفما هو. */
+function normalizeFancyText(s) {
+  if (!s) return '';
+  var out = '';
+  for (var i = 0; i < s.length; i++) {
+    var cp = s.codePointAt(i);
+    if (cp > 0xFFFF) i++;
+    var ch = null;
+    var ranges = [
+      [0x1D400, 0x1D419, 65], [0x1D41A, 0x1D433, 97],
+      [0x1D434, 0x1D44D, 65], [0x1D44E, 0x1D467, 97],
+      [0x1D468, 0x1D481, 65], [0x1D482, 0x1D49B, 97],
+      [0x1D4D0, 0x1D4E9, 65], [0x1D4EA, 0x1D503, 97],
+      [0x1D504, 0x1D51D, 65], [0x1D51E, 0x1D537, 97],
+      [0x1D538, 0x1D551, 65], [0x1D552, 0x1D56B, 97],
+      [0x1D56C, 0x1D585, 65], [0x1D586, 0x1D59F, 97],
+      [0x1D5A0, 0x1D5B9, 65], [0x1D5BA, 0x1D5D3, 97],
+      [0x1D5D4, 0x1D5ED, 65], [0x1D5EE, 0x1D607, 97],
+      [0x1D608, 0x1D621, 65], [0x1D622, 0x1D63B, 97],
+      [0x1D63C, 0x1D655, 65], [0x1D656, 0x1D66F, 97],
+      [0x1D670, 0x1D689, 65], [0x1D68A, 0x1D6A3, 97],
+      [0x1D7CE, 0x1D7D7, 48], [0x1D7D8, 0x1D7E1, 48],
+      [0x1D7E2, 0x1D7EB, 48], [0x1D7EC, 0x1D7F5, 48],
+      [0x1D7F6, 0x1D7FF, 48]
+    ];
+    for (var j = 0; j < ranges.length; j++) {
+      if (cp >= ranges[j][0] && cp <= ranges[j][1]) {
+        ch = String.fromCharCode(ranges[j][2] + (cp - ranges[j][0]));
+        break;
+      }
+    }
+    if (cp === 0x1D49C) ch = 'A'; /* script capital A */
+    out += (ch !== null ? ch : String.fromCodePoint(cp));
+  }
+  return out;
+}
+
+/* إلا صورة البروفايل ما تحملاتش: نبدلها بدائرة فيها أول حرف من الاسم */
+function avatarFallback() {
+  var img = document.getElementById('accAvatar');
+  var fb = document.getElementById('accAvatarFallback');
+  var name = (document.getElementById('accName').textContent || '').trim();
+  var user = (document.getElementById('accUser').textContent || '').replace('@', '').trim();
+  var letter = (name || user || '?').charAt(0).toUpperCase();
+  fb.textContent = letter;
+  fb.style.display = 'flex';
+  img.style.display = 'none';
+  if (typeof currentProfile !== 'undefined' && currentProfile) currentProfile.avatarOk = false;
+}
+
+function onAccountResult(jsonString) {
+  var btn = document.getElementById('checkBtn');
+  btn.disabled = false;
+  btn.textContent = 'بحث عن الحساب';
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) {
+    var el = document.getElementById('err');
+    el.textContent = 'عاود المحاولة.';
+    el.style.display = 'block';
+    return;
+  }
+  if (!r.ok) {
+    var el2 = document.getElementById('err');
+    el2.textContent = r.error === 'ACCOUNT_NOT_FOUND' ? 'الحساب غير موجود أو خاص'
+      : r.error === 'INSTAGRAM_BLOCKED' ? 'إنستغرام بلوكا الطلب — عاود من بعد.'
+      : 'عاود المحاولة.';
+    el2.style.display = 'block';
+    return;
+  }
+  var avatar = document.getElementById('accAvatar');
+  var avatarFb = document.getElementById('accAvatarFallback');
+  avatarFb.style.display = 'none';
+  avatar.style.display = 'block';
+  avatar.src = r.profilePicUrl || '';
+  document.getElementById('accName').textContent = normalizeFancyText(r.fullName || ('@' + r.username));
+  document.getElementById('accUser').textContent = '@' + r.username;
+  document.getElementById('accBio').textContent = normalizeFancyText(r.bio || '');
+  document.getElementById('accPosts').textContent = r.postsText || formatShort(r.posts);
+  document.getElementById('accFollowers').textContent = r.followersText || formatShort(r.followers);
+  document.getElementById('accFollowing').textContent = r.followingText || formatShort(r.following);
+  /* العدد الدقيق تحت الرقم المختصر — غير ملي يكون دقيق فعلاً */
+  document.getElementById('accPostsExact').textContent = r.exactCounts ? formatExact(r.posts) : '';
+  document.getElementById('accFollowersExact').textContent = r.exactCounts ? formatExact(r.followers) : '';
+  document.getElementById('accFollowingExact').textContent = r.exactCounts ? formatExact(r.following) : '';
+  document.getElementById('accNote').style.display = r.isPrivate ? 'inline-block' : 'none';
+  /* البايو والصورة ديال الحساب الحالي — للنسخ والتحميل */
+  currentProfile = {
+    username: r.username,
+    bio: normalizeFancyText(r.bio || ''),
+    picUrl: r.profilePicUrl || '',
+    /* صورة البروفايل بجودة عالية إلا توفرات (profile_pic_url_hd من الـ API) —
+       تحميلها بجودة عالية، والعرض كيبقى بالصورة العادية. إلا ما توفراتش،
+       كنستعملو الصورة العادية (150px — تبديل الحجم فالرابط كيرجع 403، مختبر). */
+    picHdUrl: r.profilePicHdUrl || r.profilePicUrl || '',
+    avatarOk: true
+  };
+  var avatarFb = document.getElementById('accAvatarFallback');
+  if (avatarFb.style.display === 'flex') currentProfile.avatarOk = false;
+  /* شبكة المنشورات — الضغطة كتفتح ورقة فيها معاينة + تنزيل / فتح */
+  var postsWrap = document.getElementById('accPostsWrap');
+  var postsGrid = document.getElementById('accPostsGrid');
+  var postsNote = document.getElementById('accPostsNote');
+  var loadMoreBtn = document.getElementById('accLoadMoreBtn');
+  postsGrid.innerHTML = '';
+  postsNote.style.display = 'none';
+  postsNote.textContent = '';
+  loadMoreBtn.style.display = 'none';
+  loadMoreBtn.disabled = false;
+  loadMoreBtn.textContent = 'عرض المزيد';
+  accountPosts = Array.isArray(r.posts) ? r.posts : [];
+  accountHasMore = !!r.postsHasMore;
+  loadingMore = false;
+  if (r.isPrivate) {
+    postsWrap.style.display = 'none';
+  } else if (accountPosts.length > 0) {
+    postsWrap.style.display = 'block';
+    accountPosts.forEach(function (p) { renderPost(p); });
+    if (accountHasMore) loadMoreBtn.style.display = 'block';
+  } else {
+    postsWrap.style.display = 'none';
+    postsNote.textContent = r.postsState === 'empty' ? 'لا توجد منشورات'
+      : 'المنشورات ما قدروش يتحملو دابا — عاود المحاولة من بعد.';
+    postsNote.style.display = 'block';
+  }
+  var card = document.getElementById('accountCard');
+  card.style.display = 'block';
+  card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+}
+
+/* ---- منشور واحد فالشبكة: الضغطة كتفتح الورقة السفلية ---- */
+function renderPost(p) {
+  var postsGrid = document.getElementById('accPostsGrid');
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'acc-post';
+  b.setAttribute('data-code', p.shortcode || '');
+  b.onclick = function () { openPostSheet(p); };
+  var img = document.createElement('img');
+  img.src = p.thumbUrl || '';
+  img.alt = '';
+  img.setAttribute('referrerpolicy', 'no-referrer');
+  img.loading = 'lazy';
+  img.onerror = function () { this.parentElement.style.display = 'none'; };
+  b.appendChild(img);
+  if (p.isVideo) {
+    var play = document.createElement('span');
+    play.className = 'acc-post-play';
+    play.textContent = '▶';
+    b.appendChild(play);
+  }
+  postsGrid.appendChild(b);
+}
+
+/* ---- ورقة المنشور: معاينة + تنزيل / فتح في إنستغرام ---- */
+function openPostSheet(p) {
+  currentPost = p;
+  /* v3.6: المعاينة هي نفس رابط التنزيل (hdUrl) — باش اللي كتشوفو هو
+     اللي كيتنزل بالضبط، ماشي المصغرة. */
+  document.getElementById('postSheetImg').src = p.hdUrl || p.thumbUrl || '';
+  document.getElementById('postSheetPlay').style.display = p.isVideo ? 'block' : 'none';
+  document.getElementById('postDlBtn').disabled = false;
+  document.getElementById('postDlBtn').textContent = 'تنزيل';
+  var st = document.getElementById('postDlStatus');
+  st.style.display = 'none';
+  st.textContent = '';
+  document.getElementById('postSheetOverlay').classList.add('open');
+}
+
+function closePostSheet() {
+  document.getElementById('postSheetOverlay').classList.remove('open');
+  currentPost = null;
+}
+
+function openCurrentPost() {
+  if (!currentPost || !currentPost.shortcode) return;
+  if (window.AndroidBridge && AndroidBridge.openPost) AndroidBridge.openPost(currentPost.shortcode);
+}
+
+function downloadCurrentPost() {
+  if (!currentPost || !currentPost.shortcode) return;
+  var btn = document.getElementById('postDlBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري التنزيل...';
+  var st = document.getElementById('postDlStatus');
+  st.style.display = 'block';
+  st.className = 'dl-status';
+  st.textContent = 'جاري التنزيل...';
+  if (window.AndroidBridge && AndroidBridge.downloadPost) {
+    AndroidBridge.downloadPost(currentPost.shortcode, currentPost.thumbUrl || '',
+      !!currentPost.isVideo, currentPost.videoUrl || '',
+      currentPost.hdUrl || currentPost.thumbUrl || '');
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'تنزيل';
+    st.className = 'dl-status err-dl';
+    st.textContent = 'فشل التنزيل.';
+  }
+}
+
+/* ---- نسخ البايو + تحميل صورة البروفايل ---- */
+function copyBio() {
+  if (!currentProfile || !currentProfile.bio) { showToast('لا يوجد بايو للنسخ'); return; }
+  if (window.AndroidBridge && AndroidBridge.copyBio) {
+    AndroidBridge.copyBio(currentProfile.bio);
+  } else {
+    showToast('تعذر النسخ — عاود المحاولة');
+  }
+}
+
+function onCopyResult(ok) {
+  showToast(ok ? 'تم نسخ البايو' : 'تعذر النسخ — عاود المحاولة');
+}
+
+function downloadProfilePic() {
+  var hd = (currentProfile && (currentProfile.picHdUrl || currentProfile.picUrl)) || '';
+  if (!currentProfile || !hd || !currentProfile.avatarOk) {
+    showToast('لا توجد صورة للتحميل');
+    return;
+  }
+  if (window.AndroidBridge && AndroidBridge.downloadProfilePic) {
+    AndroidBridge.downloadProfilePic(hd, currentProfile.username);
+    showToast('جاري تحميل الصورة...');
+  } else {
+    showToast('تعذر التحميل — عاود المحاولة');
+  }
+}
+
+/* نتيجة تنزيل الصورة/المنشور (من Java): رسالة خفيفة */
+function onMediaDownloadResult(jsonString) {
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) { showToast('فشل التنزيل.'); return; }
+  var btn = document.getElementById('postDlBtn');
+  btn.disabled = false;
+  btn.textContent = 'تنزيل';
+  var st = document.getElementById('postDlStatus');
+  if (!r.ok) {
+    showToast(r.error === 'NO_IMAGE' ? 'لا توجد صورة للتحميل' : 'فشل التنزيل.');
+    if (document.getElementById('postSheetOverlay').classList.contains('open')) {
+      st.style.display = 'block';
+      st.className = 'dl-status err-dl';
+      st.textContent = 'فشل التنزيل.';
+    }
+    return;
+  }
+  showToast(r.imageOnly ? 'تم تنزيل الصورة فقط — الفيديو ما قدرش يتحمل' : 'تم التنزيل في Downloads');
+  if (document.getElementById('postSheetOverlay').classList.contains('open')) {
+    st.style.display = 'block';
+    st.className = 'dl-status';
+    st.textContent = r.imageOnly ? 'تم تنزيل الصورة فقط' : 'تم التنزيل في Downloads';
+  }
+}
+
+/* ---- عرض المزيد: تمرير لتحت أو زر "عرض المزيد" ---- */
+function loadMorePosts() {
+  if (loadingMore || !accountHasMore) return;
+  loadingMore = true;
+  var btn = document.getElementById('accLoadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'كنحمل المزيد...';
+  if (window.AndroidBridge && AndroidBridge.loadMorePosts) {
+    AndroidBridge.loadMorePosts();
+  } else {
+    loadingMore = false;
+    btn.disabled = false;
+    btn.textContent = 'عرض المزيد';
+    showToast('لا توجد منشورات أخرى');
+  }
+}
+
+function onMorePosts(jsonString) {
+  loadingMore = false;
+  var btn = document.getElementById('accLoadMoreBtn');
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'عرض المزيد';
+    showToast('لا توجد منشورات أخرى');
+    return;
+  }
+  if (!r.ok || !Array.isArray(r.posts) || r.posts.length === 0) {
+    accountHasMore = false;
+    btn.style.display = 'none';
+    showToast('لا توجد منشورات أخرى');
+    return;
+  }
+  var known = {};
+  accountPosts.forEach(function (p) { known[p.shortcode] = true; });
+  var added = 0;
+  r.posts.forEach(function (p) {
+    if (!p.shortcode || known[p.shortcode]) return; /* بلا تكرار */
+    known[p.shortcode] = true;
+    accountPosts.push(p);
+    renderPost(p);
+    added++;
+  });
+  accountHasMore = !!r.hasMore && added > 0;
+  if (accountHasMore) {
+    btn.disabled = false;
+    btn.textContent = 'عرض المزيد';
+    btn.style.display = 'block';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+/* التمرير لتحت: ملي نوصل لآخر الصفحة، نجيب الدفعة الجاية (إلا كاينة) */
+window.addEventListener('scroll', function () {
+  if (loadingMore || !accountHasMore) return;
+  if (document.getElementById('accountCard').style.display !== 'block') return;
+  if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 300) {
+    loadMorePosts();
+  }
+});
+
+function showDlStatus(msg, isErr) {
+  var el = document.getElementById('dlStatus');
+  el.textContent = msg;
+  el.className = 'dl-status' + (isErr ? ' err-dl' : '');
+  el.style.display = 'block';
+}
+
+function downloadReel() {
+  /* v3.6: التنزيل بالروابط المعروضة بالضبط — بلا إعادة جلب (إعادة الجلب
+     كانت كترجع صورة أخرى: 429 → og:image مقصوصة، ولا أكبر صورة فنافذة
+     منشور آخر). الروابط الموقعة صالحة ~33 ساعة، والمعاينة والتنزيل
+     كيفصل بينهم ثواني. */
+  if (!current || !current.shortcode) { showDlStatus('ما كاينش رابط للتنزيل.', true); return; }
+  document.getElementById('dlBtn').disabled = true;
+  showDlStatus('جاري التنزيل...', false);
+  if (window.AndroidBridge && AndroidBridge.downloadMediaUrls) {
+    var urls = [];
+    if (current.mediaType === 'video') {
+      if (current.videoUrl) urls.push(current.videoUrl);
+    } else if (current.imageUrls && current.imageUrls.length > 0) {
+      urls = current.imageUrls.slice();
+    } else if (current.thumbUrl) {
+      urls.push(current.thumbUrl);
+    }
+    AndroidBridge.downloadMediaUrls(current.shortcode, current.mediaType || 'video', JSON.stringify(urls));
+  } else if (window.AndroidBridge && AndroidBridge.downloadMediaByCode) {
+    AndroidBridge.downloadMediaByCode(current.shortcode);
+  } else {
+    document.getElementById('dlBtn').disabled = false;
+    showDlStatus('فشل التنزيل.', true);
+  }
+}
+
+function onDownloadResult(jsonString) {
+  document.getElementById('dlBtn').disabled = false;
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) { showDlStatus('فشل التنزيل.', true); return; }
+  if (!r.ok) {
+    var msg = r.error === 'NO_VIDEO_URL' ? 'ما كاينش رابط للتنزيل.' : 'فشل التنزيل.';
+    showDlStatus(msg, true);
+    return;
+  }
+  document.getElementById('dlBtn').textContent = 'تم التنزيل';
+  if (r.mediaType === 'carousel') {
+    showDlStatus('تم تنزيل الصور (' + (r.count || 0) + ') في Downloads', false);
+  } else if (r.mediaType === 'image') {
+    showDlStatus('تم تنزيل الصورة في Downloads', false);
+  } else {
+    showDlStatus('تم التنزيل في Downloads', false);
+  }
+}
+
+/* ---- الفحص اليدوي من التحديث (زر ⟳ أسفل اليسار) ---- */
+var manualChecking = false;
+var toastTimer = null;
+
+function showToast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('out');
+  el.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () {
+    el.classList.add('out');
+    setTimeout(function () { el.style.display = 'none'; }, 300);
+  }, 3000);
+}
+
+/* ---- مفتاح الإيقاف عن بعد ---- */
+/* سطر معرف الجهاز تحيد من الواجهة (2026-11-06): المعرف باقي كيتستعمل داخلياً
+   للتبليغ والحظر، ولكن ما كيتبانش للمستخدم — المدير كيجيبو من السجل/لوحة التحكم. */
+
+/* نتيجة فحص مفتاح الإيقاف من Java: إلا محظور، شاشة كاملة كتغطي كلشي
+   وما كتتسدش، وزر التحديث كيتخبى — المستخدم المحظور ما كياخدش تحديثات. */
+function onControlResult(jsonString) {
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) { return; }
+  if (!r || !r.blocked) return;
+  var msg = r.message || 'صلي على النبي ﷺ واستغفر الله.\nلقد تم حظرك من استخدام التطبيق من طرف المالك.';
+  document.getElementById('blockMsg').textContent = msg;
+  document.getElementById('blockOverlay').classList.add('open');
+  var ub = document.getElementById('updateBtn');
+  if (ub) ub.style.display = 'none';
+}
+
+function manualCheck() {
+  if (manualChecking) return;
+  manualChecking = true;
+  document.getElementById('manualCheckBtn').classList.add('checking');
+  if (window.AndroidBridge && AndroidBridge.checkUpdateManually) {
+    AndroidBridge.checkUpdateManually();
+  } else {
+    manualChecking = false;
+    document.getElementById('manualCheckBtn').classList.remove('checking');
+    showToast('تعذر التحقق — عاود المحاولة');
+  }
+}
+
+/* نتيجة الفحص اليدوي من Java: تحديث متوفر / أحدث نسخة / تعذر التحقق.
+   إلا كان تحديث، الزر الذهبي كيبان فنفس الوقت عبر onUpdateAvailable. */
+function onUpdateCheckResult(jsonString) {
+  manualChecking = false;
+  document.getElementById('manualCheckBtn').classList.remove('checking');
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) { showToast('تعذر التحقق — عاود المحاولة'); return; }
+  if (r.error) { showToast('تعذر التحقق — عاود المحاولة'); return; }
+  if (r.hasUpdate) {
+    showToast('يوجد تحديث متوفر' + (r.versionName ? ' (' + r.versionName + ')' : ''));
+  } else {
+    showToast('أنت في أحدث نسخة');
+  }
+}
+
+/* ---- التحديث داخل التطبيق (OTA) — زر ذهبي فاخر مع نسبة تحميل حقيقية ---- */
+function setUpdLabel(text) {
+  document.getElementById('updLabel').textContent = text;
+}
+
+function onUpdateAvailable(versionName, apkUrl) {
+  pendingUpdateUrl = apkUrl || null;
+  updateState = 'idle';
+  updateDownloaded = false;
+  var btn = document.getElementById('updateBtn');
+  btn.classList.remove('downloading');
+  document.getElementById('updFill').style.width = '0%';
+  document.getElementById('updFill').classList.remove('indeterminate');
+  setUpdLabel('تحديث');
+  btn.style.display = 'block';
+}
+
+function showUpdStatus(msg) {
+  var el = document.getElementById('updStatus');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/* ضغطة الزر: إلا التحميل كمل → تثبيت، وإلا → بدا التحميل */
+function updateBtnTap() {
+  if (updateState === 'downloaded' || updateDownloaded) {
+    if (window.AndroidBridge && AndroidBridge.installUpdate) {
+      AndroidBridge.installUpdate();
+    }
+    return;
+  }
+  if (updateState === 'downloading') return;
+  downloadUpdate();
+}
+
+function downloadUpdate() {
+  if (!pendingUpdateUrl) return;
+  updateState = 'downloading';
+  var btn = document.getElementById('updateBtn');
+  btn.classList.add('downloading');
+  document.getElementById('updFill').style.width = '0%';
+  setUpdLabel('جارٍ التحميل… 0%');
+  if (window.AndroidBridge && AndroidBridge.downloadUpdate) {
+    AndroidBridge.downloadUpdate(pendingUpdateUrl);
+  } else {
+    updateState = 'idle';
+    btn.classList.remove('downloading');
+    showUpdStatus('فشل التحديث.');
+  }
+}
+
+/* نسبة حقيقية من Java (0–100)؛ -1 = الحجم ما معروفش (بلا رقم مخترع)؛ -2 = فشل */
+function onDownloadProgress(percent) {
+  var btn = document.getElementById('updateBtn');
+  var fill = document.getElementById('updFill');
+  if (percent === -2) {
+    updateState = 'idle';
+    btn.classList.remove('downloading');
+    fill.style.width = '0%';
+    fill.classList.remove('indeterminate');
+    setUpdLabel('تحديث');
+    return;
+  }
+  if (percent < 0) {
+    fill.classList.add('indeterminate');
+    setUpdLabel('جارٍ التحميل…');
+    return;
+  }
+  fill.classList.remove('indeterminate');
+  fill.style.width = percent + '%';
+  setUpdLabel('جارٍ التحميل… ' + percent + '%');
+}
+
+function onUpdateResult(jsonString) {
+  var r;
+  try { r = JSON.parse(jsonString); } catch (e) { showUpdStatus('فشل التحديث.'); return; }
+  var btn = document.getElementById('updateBtn');
+  if (!r.ok) {
+    updateState = 'idle';
+    btn.classList.remove('downloading');
+    document.getElementById('updFill').style.width = '0%';
+    document.getElementById('updFill').classList.remove('indeterminate');
+    setUpdLabel('تحديث');
+    var msgs = {
+      'UPDATE_NET': 'تعذر الاتصال — تحقق من الإنترنت وعاود المحاولة.',
+      'UPDATE_HTTP': 'تعذر تحميل التحديث من الخادم.',
+      'UPDATE_WRITE': 'تعذر حفظ ملف التحديث.',
+      'UPDATE_SMALL': 'ملف التحديث ناقص.',
+      'UPDATE_INSTALL': 'تعذر فتح المثبت.'
+    };
+    showUpdStatus(msgs[r.error] || 'فشل التحديث.');
+    return;
+  }
+  if (r.state === 'downloaded') {
+    updateState = 'downloaded';
+    updateDownloaded = true;
+    btn.classList.remove('downloading');
+    document.getElementById('updFill').style.width = '100%';
+    document.getElementById('updFill').classList.remove('indeterminate');
+    setUpdLabel('تثبيت التحديث');
+    showUpdStatus('تم التنزيل — غادي يبدا التثبيت');
+  } else {
+    showUpdStatus('جاري تنزيل التحديث...');
+  }
+}
+</script>
+</body>
+</html>
