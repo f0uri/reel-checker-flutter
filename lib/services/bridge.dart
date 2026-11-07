@@ -22,6 +22,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'downloader.dart';
 import 'instagram_service.dart';
 import 'multi_platform_service.dart';
+import 'server_service.dart';
 import 'updater.dart';
 
 class Bridge {
@@ -163,6 +164,18 @@ class Bridge {
       await _postJson('onReelResult', {'ok': false, 'error': 'REEL_NOT_FOUND'});
       return;
     }
+    // Server first (yt-dlp handles Instagram reliably); in-app
+    // extraction is the fallback when the server is not configured
+    // or fails. Any server failure is silent — never worse than before.
+    try {
+      await ServerService.ensureLoaded();
+      final viaServer = await ServerService.parseMedia(
+          'https://www.instagram.com/reel/$code/');
+      if (viaServer != null) {
+        await _postJson('onReelResult', viaServer);
+        return;
+      }
+    } catch (_) {}
     try {
       final meta = await InstagramService.fetchReelMeta(code);
       await _postJson('onReelResult', meta);
@@ -187,6 +200,12 @@ class Bridge {
       return;
     }
     try {
+      await ServerService.ensureLoaded();
+      final viaServer = await ServerService.parseMedia(url);
+      if (viaServer != null) {
+        await _postJson('onReelResult', viaServer);
+        return;
+      }
       final meta = await MultiPlatformService.fetchMediaMeta(url);
       await _postJson('onReelResult', meta);
     } on PlatformMediaException catch (e) {
