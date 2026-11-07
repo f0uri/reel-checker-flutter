@@ -681,6 +681,11 @@ class InstagramService {
       if (m == null) return null;
       final videoUrl = (m['video_url'] as String?) ?? '';
       if (videoUrl.isEmpty) {
+        // A video post without a video URL here must not degrade
+        // to a photo: let the caller try the p/ page next.
+        final isVideo = m['is_video'] == true ||
+            m['__typename'] == 'GraphVideo';
+        if (isVideo) return null;
         final imgs = <String>[];
         final sidecar =
             m['edge_sidecar_to_children'] as Map<String, dynamic>?;
@@ -788,6 +793,9 @@ class InstagramService {
       videoUrl ??= pick(
           html, r'<meta property="og:video" content="([^"]+)"');
       if (videoUrl == null || videoUrl.isEmpty) {
+        // Video post with no og:video: never answer with its
+        // thumbnail photo — report failure instead.
+        if (html.contains('XIGPolarisVideoMedia')) return null;
         final owner = extractPostOwnerUsername(html);
         if (html.contains(
             '"xig_polaris_media":{"__typename":"XIGPolarisImageMedia"')) {
@@ -1131,6 +1139,15 @@ class InstagramService {
         'viewCount': viewCount,
         'permalink': 'https://www.instagram.com/reel/$shortcode/',
       };
+    }
+    // A video/reel whose video_url is missing from the embed page
+    // must NOT silently degrade to a photo: throw so fetchReelMeta
+    // tries GraphQL and the p/ page next. Only real photos return
+    // an image result from here.
+    final isVideoPost = mediaWin.contains('"__typename":"GraphVideo"') ||
+        mediaWin.contains('"is_video":true');
+    if (isVideoPost) {
+      throw ReelException('VIDEO_URL_MISSING');
     }
     final bounds = findMediaNodeBounds(text, shortcode);
     final imgs = bounds != null
