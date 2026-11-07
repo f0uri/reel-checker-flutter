@@ -25,16 +25,22 @@ class ServerService {
 
   static String? _serverUrl;
   static String? _apiKey;
-  static bool _loaded = false;
+  static int _loadedAt = 0;
   static bool _loading = false;
 
-  /// Load server.json once (5 s timeout). Never throws.
+  /// Load server.json (5 s timeout), re-reading it when over 60 s
+  /// old. Never throws. The old once-per-process load kept a stale
+  /// empty config forever when server.json was filled while the app
+  /// was already running — a restart was the only cure. Now every
+  /// check picks a changed server up within a minute, no restart.
   static Future<void> ensureLoaded() async {
-    if (_loaded || _loading) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_loading) return;
+    if (_loadedAt > 0 && now - _loadedAt < 60000) return;
     _loading = true;
     try {
       final resp = await http
-          .get(Uri.parse('$_configUrl?x=${DateTime.now().millisecondsSinceEpoch}'))
+          .get(Uri.parse('$_configUrl?x=$now'))
           .timeout(const Duration(seconds: 5));
       if (resp.statusCode == 200) {
         final cfg = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -43,13 +49,16 @@ class ServerService {
         if (u.startsWith('http://') || u.startsWith('https://')) {
           _serverUrl = u.replaceAll(RegExp(r'/+$'), '');
           _apiKey = k.isEmpty ? null : k;
+        } else {
+          _serverUrl = null;
+          _apiKey = null;
         }
       }
     } catch (_) {
       // No config / no network: stay in-app only.
     } finally {
       _loading = false;
-      _loaded = true;
+      _loadedAt = DateTime.now().millisecondsSinceEpoch;
     }
   }
 
@@ -71,7 +80,7 @@ class ServerService {
             },
             body: jsonEncode({'url': url}),
           )
-          .timeout(const Duration(seconds: 25));
+          .timeout(const Duration(seconds: 90));
       if (resp.statusCode != 200) return null;
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['ok'] != true) return null;
