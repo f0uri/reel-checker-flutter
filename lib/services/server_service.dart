@@ -28,34 +28,42 @@ class ServerService {
   static int _loadedAt = 0;
   static bool _loading = false;
 
-  /// Load server.json (5 s timeout), re-reading it when over 60 s
-  /// old. Never throws. The old once-per-process load kept a stale
-  /// empty config forever when server.json was filled while the app
-  /// was already running — a restart was the only cure. Now every
-  /// check picks a changed server up within a minute, no restart.
+  /// Load server.json (15 s timeout, one retry), re-reading it when
+  /// over 60 s old. Never throws. 15 s + retry on purpose: the app's
+  /// own update check uses 10 s + a retry for version.json on the
+  /// SAME host and works on the user's slow connection, while this
+  /// fetch used 5 s with no retry and silently never loaded.
   static Future<void> ensureLoaded() async {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_loading) return;
     if (_loadedAt > 0 && now - _loadedAt < 60000) return;
     _loading = true;
     try {
-      final resp = await http
-          .get(Uri.parse('$_configUrl?x=$now'))
-          .timeout(const Duration(seconds: 5));
-      if (resp.statusCode == 200) {
-        final cfg = jsonDecode(resp.body) as Map<String, dynamic>;
-        final u = (cfg['serverUrl'] as String?)?.trim() ?? '';
-        final k = (cfg['apiKey'] as String?)?.trim() ?? '';
-        if (u.startsWith('http://') || u.startsWith('https://')) {
-          _serverUrl = u.replaceAll(RegExp(r'/+$'), '');
-          _apiKey = k.isEmpty ? null : k;
-        } else {
-          _serverUrl = null;
-          _apiKey = null;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final resp = await http
+              .get(Uri.parse(
+                  '$_configUrl?x=${DateTime.now().millisecondsSinceEpoch}'))
+              .timeout(const Duration(seconds: 15));
+          if (resp.statusCode == 200) {
+            final cfg = jsonDecode(resp.body) as Map<String, dynamic>;
+            final u = (cfg['serverUrl'] as String?)?.trim() ?? '';
+            final k = (cfg['apiKey'] as String?)?.trim() ?? '';
+            if (u.startsWith('http://') || u.startsWith('https://')) {
+              _serverUrl = u.replaceAll(RegExp(r'/+$'), '');
+              _apiKey = k.isEmpty ? null : k;
+            } else {
+              _serverUrl = null;
+              _apiKey = null;
+            }
+            break;
+          }
+        } catch (_) {
+          if (attempt == 0) {
+            await Future.delayed(const Duration(seconds: 2));
+          }
         }
       }
-    } catch (_) {
-      // No config / no network: stay in-app only.
     } finally {
       _loading = false;
       _loadedAt = DateTime.now().millisecondsSinceEpoch;
