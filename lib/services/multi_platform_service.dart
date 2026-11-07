@@ -101,6 +101,30 @@ class MultiPlatformService {
     return _getTextWith(url, _browserUa);
   }
 
+  // TikTok session cookies (ttwid, msToken, ...) captured from the
+  // page fetches. TikTok's video CDN rejects downloads that arrive
+  // with a Referer but no session cookies, so the downloader sends
+  // these back on TikTok hosts. Anonymous only: no account identity.
+  static final Map<String, String> _tikTokCookies = {};
+
+  static String get tikTokCookieHeader => _tikTokCookies.entries
+      .map((e) => '${e.key}=${e.value}')
+      .join('; ');
+
+  static void _collectTikTokCookies(Map<String, List<String>> headers) {
+    final setCookies = headers['set-cookie'];
+    if (setCookies == null) return;
+    for (final sc in setCookies) {
+      final nv = sc.split(';')[0].trim();
+      final eq = nv.indexOf('=');
+      if (eq <= 0) continue;
+      final name = nv.substring(0, eq).trim();
+      final value = nv.substring(eq + 1).trim();
+      if (name.isEmpty || value.isEmpty) continue;
+      _tikTokCookies[name] = value;
+    }
+  }
+
   static Future<String?> _getTextWith(String url, String ua,
       {String? referer}) async {
     try {
@@ -115,6 +139,10 @@ class MultiPlatformService {
           connectTimeout: _timeout,
           readTimeout: _timeout);
       if (resp.statusCode < 200 || resp.statusCode >= 300) return null;
+      if ((Uri.tryParse(url)?.host.toLowerCase() ?? '')
+          .contains('tiktok')) {
+        _collectTikTokCookies(resp.headers);
+      }
       return resp.body;
     } catch (_) {
       return null;
