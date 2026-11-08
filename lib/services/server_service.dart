@@ -134,6 +134,18 @@ class ServerService {
       if (data['ok'] != true) return null;
       final bestUrl = (data['bestUrl'] as String?) ?? '';
       if (bestUrl.isEmpty) return null;
+      // v4.4.3: DASH video-only fallback — grab the separate audio
+      // track URL so the player can play it in sync with the video.
+      String audioUrl = '';
+      final formats = data['formats'];
+      if (formats is List) {
+        for (final f in formats) {
+          if (f is Map && f['kind'] == 'audio') {
+            audioUrl = (f['url'] as String?) ?? '';
+            break;
+          }
+        }
+      }
       final platform = (data['platform'] as String?) ?? 'video';
       final id = (data['id'] as String?) ?? '';
       final meta = <String, dynamic>{
@@ -142,6 +154,7 @@ class ServerService {
         'title': (data['title'] as String?) ?? '',
         'thumbnail': (data['thumbnail'] as String?) ?? '',
         'videoUrl': bestUrl,
+        'audioUrl': audioUrl,
         'mediaType': 'video',
         'uploader': (data['uploader'] as String?) ?? '',
         'duration': data['duration'],
