@@ -72,6 +72,26 @@ class ServerService {
 
   static bool get isConfigured => _serverUrl != null;
 
+  /// Warm the server up when the app opens, in the background: the
+  /// free container sleeps after 15 min idle and waking it takes
+  /// ~40 s — doing it at launch (while the user is still typing or
+  /// pasting a link) keeps that wait out of the check itself.
+  /// Fire-and-forget; never throws, never touches the UI.
+  static Future<void> warmUp() async {
+    try {
+      await ensureLoaded();
+      final base = _serverUrl;
+      if (base == null) return;
+      try {
+        final resp = await http
+            .get(Uri.parse('$base/health'))
+            .timeout(const Duration(seconds: 5));
+        if (resp.statusCode == 200) return;
+      } catch (_) {}
+      await _wakeServer(base);
+    } catch (_) {}
+  }
+
   /// Ask the server to parse [url]. Returns the app's standard meta
   /// map on success, null on ANY failure (caller falls back to the
   /// in-app extractors). Never throws.
@@ -158,8 +178,8 @@ class ServerService {
         // Wake call failed — the container may still wake from
         // another request, so poll /health anyway.
       }
-      for (var i = 0; i < 18; i++) {
-        await Future.delayed(const Duration(seconds: 5));
+      for (var i = 0; i < 30; i++) {
+        await Future.delayed(const Duration(seconds: 3));
         try {
           final resp = await http
               .get(Uri.parse('$base/health'))
