@@ -326,8 +326,7 @@
     box-shadow: 0 24px 56px rgba(0, 0, 0, .12), 0 0 0 1px rgba(0,0,0,.04);
     animation: popIn .5s var(--spring) both;
   }
-  .card video { width: 100%; display: block; background: #000; max-height: 70vh; }
-  /* v3.5: معاينة الصورة فبطاقة الفحص — بدل إطار فيديو أسود للمنشورات ديال الصور */
+  /* v3.5: معاينة الصورة فبطاقة الفحص — للمنشورات ديال الصور */
   .card img.photo-preview { width: 100%; display: block; background: #000; max-height: 70vh; object-fit: contain; }
   .card .pad { padding: 16px; background: linear-gradient(180deg, rgba(0,0,0,.02), transparent); }
   .card .main { margin-top: 0; }
@@ -539,7 +538,6 @@
   </div>
 
   <div class="card" id="card">
-    <video id="player" controls playsinline poster=""></video>
     <img id="photoPreview" class="photo-preview" style="display:none" alt="" referrerpolicy="no-referrer">
     <div class="pad">
       <button class="main" id="dlBtn" onclick="downloadReel()">تنزيل الريل</button>
@@ -682,8 +680,6 @@ function clearInput() {
   document.getElementById('err').style.display = 'none';
   document.getElementById('dlStatus').style.display = 'none';
   document.getElementById('updStatus').style.display = 'none';
-  var player = document.getElementById('player');
-  try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
   var checkBtn = document.getElementById('checkBtn');
   checkBtn.disabled = false;
   checkBtn.textContent = mode === 'account' ? 'بحث عن الحساب' : 'تحقق من الريل';
@@ -727,7 +723,6 @@ function check() {
   document.getElementById('err').style.display = 'none';
   document.getElementById('card').style.display = 'none';
   document.getElementById('photoPreview').style.display = 'none';
-  document.getElementById('player').style.display = 'block';
   document.getElementById('dlStatus').style.display = 'none';
   document.getElementById('dlBtn').disabled = false;
   document.getElementById('dlBtn').textContent = 'تنزيل الريل';
@@ -759,12 +754,9 @@ function onReelResult(jsonString) {
   current = r;
   document.getElementById('dlStatus').style.display = 'none';
   document.getElementById('dlBtn').disabled = false;
-  var player = document.getElementById('player');
   var photo = document.getElementById('photoPreview');
   if (r.mediaType === 'image' || r.mediaType === 'carousel') {
-    /* v3.5: منشور صورة / ألبوم — معاينة الصورة بدل إطار فيديو أسود */
-    player.removeAttribute('src');
-    player.style.display = 'none';
+    /* v3.5: منشور صورة / ألبوم — معاينة الصورة */
     var firstImg = (r.imageUrls && r.imageUrls.length > 0 ? r.imageUrls[0] : '') || r.thumbUrl || '';
     photo.src = firstImg;
     photo.style.display = 'block';
@@ -773,9 +765,6 @@ function onReelResult(jsonString) {
       : 'تنزيل الصورة';
   } else {
     photo.style.display = 'none';
-    player.style.display = 'block';
-    player.poster = r.thumbUrl || '';
-    player.src = r.videoUrl;
     document.getElementById('dlBtn').textContent = 'تنزيل الريل';
   }
   var card = document.getElementById('card');
