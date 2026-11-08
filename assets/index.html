@@ -540,6 +540,7 @@
 
   <div class="card" id="card">
     <video id="player" controls playsinline preload="auto" poster=""></video>
+    <audio id="audioTrack" preload="auto"></audio>
     <img id="photoPreview" class="photo-preview" style="display:none" alt="" referrerpolicy="no-referrer">
     <div class="pad">
       <button class="main" id="dlBtn" onclick="downloadReel()">تنزيل الريل</button>
@@ -764,6 +765,9 @@ function onReelResult(jsonString) {
     /* v3.5: منشور صورة / ألبوم — معاينة الصورة */
     player.removeAttribute('src');
     player.style.display = 'none';
+    var audioEl0 = document.getElementById('audioTrack');
+    try { audioEl0.pause(); } catch (e) {}
+    audioEl0.removeAttribute('src');
     var firstImg = (r.imageUrls && r.imageUrls.length > 0 ? r.imageUrls[0] : '') || r.thumbUrl || '';
     photo.src = firstImg;
     photo.style.display = 'block';
@@ -778,6 +782,30 @@ function onReelResult(jsonString) {
     player.style.display = 'none';
     player.poster = r.thumbUrl || '';
     player.src = r.videoUrl;
+    /* v4.4.3: صوت منفصل — السيرفر كيرجع فيديو بلا صوت (DASH)؛ إلا كان عندنا
+       رابط صوت والفيديو ماشي ملف مدمج (/dl/ فيه الصوت أصلاً)، كنشغلو عنصر
+       صوت مخفي متزامن مع الفيديو (تشغيل/إيقاف/تقديم/صوت). */
+    var audioEl = document.getElementById('audioTrack');
+    var isMerged = r.videoUrl && r.videoUrl.indexOf('/dl/') !== -1;
+    if (!isMerged && r.audioUrl) {
+      audioEl.src = r.audioUrl;
+      try { audioEl.load(); } catch (e) {}
+      audioEl.volume = player.volume;
+      audioEl.muted = player.muted;
+      player.onplay = function() { try { var p = audioEl.play(); if (p && p.catch) p.catch(function() {}); } catch (e) {} };
+      player.onpause = function() { try { audioEl.pause(); } catch (e) {} };
+      player.onseeked = function() { try { audioEl.currentTime = player.currentTime; } catch (e) {} };
+      player.onended = function() { try { audioEl.pause(); } catch (e) {} };
+      player.onvolumechange = function() { try { audioEl.volume = player.volume; audioEl.muted = player.muted; } catch (e) {} };
+      player.ontimeupdate = function() {
+        try { if (Math.abs(audioEl.currentTime - player.currentTime) > 0.4) audioEl.currentTime = player.currentTime; } catch (e) {}
+      };
+    } else {
+      try { audioEl.pause(); } catch (e) {}
+      audioEl.removeAttribute('src');
+      player.onplay = null; player.onpause = null; player.onseeked = null;
+      player.onended = null; player.onvolumechange = null; player.ontimeupdate = null;
+    }
     player.onplaying = function() { player.style.display = 'block'; };
     try {
       var pr = player.play();
