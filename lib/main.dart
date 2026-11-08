@@ -12,6 +12,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'services/bridge.dart';
 import 'services/platform.dart';
+import 'services/server_service.dart';
 import 'services/updater.dart';
 
 void main() {
@@ -84,6 +85,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
     _updater.attach(_controller);
     unawaited(_updater.restoreBlockedState());
+    // Warm the downloader server in the background so the first
+    // check doesn't pay the ~40 s wake-up wait.
+    unawaited(ServerService.warmUp());
     unawaited(_controller.loadFlutterAsset('assets/index.html'));
   }
 
