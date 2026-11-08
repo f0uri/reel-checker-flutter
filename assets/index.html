@@ -326,6 +326,7 @@
     box-shadow: 0 24px 56px rgba(0, 0, 0, .12), 0 0 0 1px rgba(0,0,0,.04);
     animation: popIn .5s var(--spring) both;
   }
+  .card video { width: 100%; display: block; background: #000; max-height: 70vh; }
   /* v3.5: معاينة الصورة فبطاقة الفحص — للمنشورات ديال الصور */
   .card img.photo-preview { width: 100%; display: block; background: #000; max-height: 70vh; object-fit: contain; }
   .card .pad { padding: 16px; background: linear-gradient(180deg, rgba(0,0,0,.02), transparent); }
@@ -538,6 +539,7 @@
   </div>
 
   <div class="card" id="card">
+    <video id="player" controls playsinline preload="auto" poster=""></video>
     <img id="photoPreview" class="photo-preview" style="display:none" alt="" referrerpolicy="no-referrer">
     <div class="pad">
       <button class="main" id="dlBtn" onclick="downloadReel()">تنزيل الريل</button>
@@ -680,6 +682,8 @@ function clearInput() {
   document.getElementById('err').style.display = 'none';
   document.getElementById('dlStatus').style.display = 'none';
   document.getElementById('updStatus').style.display = 'none';
+  var player = document.getElementById('player');
+  try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
   var checkBtn = document.getElementById('checkBtn');
   checkBtn.disabled = false;
   checkBtn.textContent = mode === 'account' ? 'بحث عن الحساب' : 'تحقق من الريل';
@@ -754,9 +758,12 @@ function onReelResult(jsonString) {
   current = r;
   document.getElementById('dlStatus').style.display = 'none';
   document.getElementById('dlBtn').disabled = false;
+  var player = document.getElementById('player');
   var photo = document.getElementById('photoPreview');
   if (r.mediaType === 'image' || r.mediaType === 'carousel') {
     /* v3.5: منشور صورة / ألبوم — معاينة الصورة */
+    player.removeAttribute('src');
+    player.style.display = 'none';
     var firstImg = (r.imageUrls && r.imageUrls.length > 0 ? r.imageUrls[0] : '') || r.thumbUrl || '';
     photo.src = firstImg;
     photo.style.display = 'block';
@@ -765,6 +772,17 @@ function onReelResult(jsonString) {
       : 'تنزيل الصورة';
   } else {
     photo.style.display = 'none';
+    /* v4.4.1: الريل كيخدم مباشرة ملي يظهر — المشغل مخفي حتى يبدا التشغيل فعلاً،
+       باش ما يبانش المربع الرمادي قبل ما يخدم. إلا التشغيل التلقائي تمنع،
+       كيبان المشغل بالأزرار باش يضغط play. */
+    player.style.display = 'none';
+    player.poster = r.thumbUrl || '';
+    player.src = r.videoUrl;
+    player.onplaying = function() { player.style.display = 'block'; };
+    try {
+      var pr = player.play();
+      if (pr && pr.catch) pr.catch(function() { player.style.display = 'block'; });
+    } catch (e) { player.style.display = 'block'; }
     document.getElementById('dlBtn').textContent = 'تنزيل الريل';
   }
   var card = document.getElementById('card');
