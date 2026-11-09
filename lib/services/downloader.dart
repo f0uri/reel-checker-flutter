@@ -21,16 +21,32 @@ class Downloader {
   static const int _connectTimeoutMs = 30000;
   static const int _readTimeoutMs = 60000;
 
+  // Primary Instagram headers (used for all normal downloads)
   static Map<String, String> get _headers => {
         'User-Agent': InstagramService.userAgents[0],
         'Referer': 'https://www.instagram.com/',
         'Accept-Language': 'en-US,en;q=0.9',
       };
 
+  // QuickSave fallback headers — same UA as QuickSave API request
+  // Required by spec: "Download the video URL with the same user-agent header"
+  static const String _quickSaveUA =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36';
+
+  static Map<String, String> get _quickSaveHeaders => {
+        'User-Agent': _quickSaveUA,
+        'Referer': 'https://www.instagram.com/',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': '*/*',
+      };
+
   /// Download headers: Instagram only (v4.4.0 removed the other
   /// platforms) — every download is an Instagram CDN file, fetched
-  /// with the Instagram headers.
-  static Map<String, String> _headersFor(String url) {
+  /// with the Instagram headers. When [useQuickSaveUA] is true, the
+  /// QuickSave UA is used (required for quicksave.my fallback CDN links).
+  static Map<String, String> _headersFor(String url,
+      {bool useQuickSaveUA = false}) {
+    if (useQuickSaveUA) return _quickSaveHeaders;
     return _headers;
   }
 
@@ -38,10 +54,15 @@ class Downloader {
   /// Returns {"ok":true,"filename":...,"size":...} or
   /// {"ok":false,"error":"DOWNLOAD_FAILED"} — same shape as the Java
   /// downloadMediaFile.
+  ///
+  /// When [useQuickSaveUA] is true, the QuickSave user-agent is used —
+  /// the CDN link from quicksave.my is a temporary Instagram CDN URL
+  /// and must be downloaded right away with the same UA, never cached.
   static Future<Map<String, dynamic>> downloadMediaFile(
-      String url, String fileName, String? mimeType) async {
+      String url, String fileName, String? mimeType,
+      {bool useQuickSaveUA = false}) async {
     try {
-      final tmp = await _downloadToTemp(url);
+      final tmp = await _downloadToTemp(url, useQuickSaveUA: useQuickSaveUA);
       if (tmp == null) {
         return {'ok': false, 'error': 'DOWNLOAD_FAILED'};
       }
@@ -60,8 +81,7 @@ class Downloader {
         await tmp.delete().catchError((_) => tmp);
         // iOS has no public Downloads folder: hand the file to the
         // user through the system share sheet ("Save to Files").
-        await Share.shareXFiles([XFile(dest.path)],
-            text: fileName);
+        await Share.shareXFiles([XFile(dest.path)], text: fileName);
         return {'ok': true, 'filename': fileName, 'size': size};
       }
       await tmp.delete().catchError((_) => tmp);
@@ -73,12 +93,13 @@ class Downloader {
 
   /// Stream [url] to a temp file. Returns null on any failure, or if
   /// the file is under 1024 bytes (same guard as the Java code).
-  static Future<File?> _downloadToTemp(String url) async {
+  static Future<File?> _downloadToTemp(String url,
+      {bool useQuickSaveUA = false}) async {
     http.Client? client;
     try {
       client = http.Client();
       final req = http.Request('GET', Uri.parse(url));
-      req.headers.addAll(_headersFor(url));
+      req.headers.addAll(_headersFor(url, useQuickSaveUA: useQuickSaveUA));
       final resp = await client
           .send(req)
           .timeout(const Duration(milliseconds: _connectTimeoutMs));
