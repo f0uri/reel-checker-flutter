@@ -21,6 +21,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'downloader.dart';
 import 'instagram_service.dart';
+import 'quicksave_service.dart';
 import 'server_service.dart';
 import 'updater.dart';
 
@@ -29,6 +30,12 @@ class Bridge {
 
   final WebViewController _controller;
   final Updater _updater;
+
+  // Track which shortcodes were resolved via quicksave.my fallback
+  // so downloads use the same UA (spec: "Download the video URL with
+  // the same user-agent header. The link is a temporary Instagram CDN
+  // URL, so download right away and never cache it.").
+  final Map<String, bool> _quickSaveShortcodes = {};
 
   /// Injected into the page after load. Captures the real channel
   /// object first, then replaces window.AndroidBridge with the
@@ -153,6 +160,10 @@ class Bridge {
 
   // ================= reel / account =================
 
+  /// Fetch reel meta with fallback order: primary -> quicksave.my -> error.
+  /// Primary is: server (yt-dlp) -> InstagramService (embed/GraphQL/p page).
+  /// QuickSave is used ONLY when primary fails (error/timeout/no video URL).
+  /// Logs which source succeeded for debugging.
   Future<void> _checkReel(String shortcode) async {
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
@@ -167,19 +178,58 @@ class Bridge {
       final viaServer = await ServerService.parseMedia(
           'https://www.instagram.com/reel/$code/');
       if (viaServer != null) {
+        // ignore: avoid_print
+        print('[ReelChecker] source: server succeeded for $code');
+        _quickSaveShortcodes[code] = false;
         await _postJson('onReelResult', viaServer);
         return;
+      } else {
+        // ignore: avoid_print
+        print('[ReelChecker] source: server failed/null for $code -> trying primary Instagram');
       }
-    } catch (_) {}
+    } catch (e) {
+      // ignore: avoid_print
+      print('[ReelChecker] source: server error for $code: $e -> trying primary Instagram');
+    }
+
+    // Primary Instagram extraction
+    String? lastPrimaryError;
     try {
       final meta = await InstagramService.fetchReelMeta(code);
+      // ignore: avoid_print
+      print('[ReelChecker] source: primary (InstagramService) succeeded for $code');
+      _quickSaveShortcodes[code] = false;
       await _postJson('onReelResult', meta);
+      return;
     } on ReelException catch (e) {
+      lastPrimaryError = e.code;
+      // ignore: avoid_print
+      print('[ReelChecker] source: primary failed for $code error=${e.code} -> trying fallback quicksave.my');
+    } catch (e) {
+      lastPrimaryError = 'INSTAGRAM_ERROR';
+      // ignore: avoid_print
+      print('[ReelChecker] source: primary exception for $code: $e -> trying fallback quicksave.my');
+    }
+
+    // FALLBACK: quicksave.my (only when primary fails)
+    try {
+      final fallback = await QuickSaveService.fetchReelMeta(code);
+      // ignore: avoid_print
+      print('[ReelChecker] source: quicksave.my succeeded for $code height=${fallback['height']} label=${fallback['qualityLabel']}');
+      _quickSaveShortcodes[code] = true;
+      await _postJson('onReelResult', fallback);
+      return;
+    } on ReelException catch (e) {
+      // ignore: avoid_print
+      print('[ReelChecker] source: quicksave.my failed for $code error=${e.code}');
+      await _postJson('onReelResult', {'ok': false, 'error': e.code});
+      return;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[ReelChecker] source: quicksave.my exception for $code: $e');
       await _postJson(
-          'onReelResult', {'ok': false, 'error': e.code});
-    } catch (_) {
-      await _postJson(
-          'onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
+          'onReelResult', {'ok': false, 'error': lastPrimaryError ?? 'INSTAGRAM_ERROR'});
+      return;
     }
   }
 
@@ -226,8 +276,10 @@ class Bridge {
   /// One media file via the Downloader (temp file + native
   /// MediaStore on Android, documents + share sheet on iOS).
   static Future<Map<String, dynamic>> _downloadOne(
-      String url, String fileName, String mimeType) {
-    return Downloader.downloadMediaFile(url, fileName, mimeType);
+      String url, String fileName, String mimeType,
+      {bool useQuickSaveUA = false}) {
+    return Downloader.downloadMediaFile(url, fileName, mimeType,
+        useQuickSaveUA: useQuickSaveUA);
   }
 
   /// Download a reel by its video URL (legacy path — the page now
@@ -242,14 +294,56 @@ class Bridge {
           'onDownloadResult', {'ok': false, 'error': 'NO_VIDEO_URL'});
       return;
     }
-    final res = await _downloadOne(videoUrl.trim(), '$code.mp4', 'video/mp4');
+    final isQuickSave = _quickSaveShortcodes[code] == true;
+    final res = await _downloadOne(videoUrl.trim(), '$code.mp4', 'video/mp4',
+        useQuickSaveUA: isQuickSave);
     res['mediaType'] = 'video';
     await _postJson('onDownloadResult', res);
+  }
+
+  /// Helper: fetch meta with fallback (InstagramService -> QuickSaveService)
+  /// Returns map with extra key "_viaQuickSave" bool for download UA.
+  Future<Map<String, dynamic>?> _fetchMetaWithFallback(String code) async {
+    String? lastError;
+    try {
+      final meta = await InstagramService.fetchReelMeta(code);
+      // ignore: avoid_print
+      print('[ReelChecker] fetchMeta primary succeeded for $code');
+      meta['_viaQuickSave'] = false;
+      return meta;
+    } on ReelException catch (e) {
+      lastError = e.code;
+      // ignore: avoid_print
+      print('[ReelChecker] fetchMeta primary failed for $code error=${e.code} -> trying quicksave');
+    } catch (e) {
+      lastError = 'INSTAGRAM_ERROR';
+      // ignore: avoid_print
+      print('[ReelChecker] fetchMeta primary exception for $code: $e');
+    }
+    // Fallback to quicksave for video only
+    try {
+      final fb = await QuickSaveService.fetchReelMeta(code);
+      // ignore: avoid_print
+      print('[ReelChecker] fetchMeta quicksave fallback succeeded for $code');
+      fb['_viaQuickSave'] = true;
+      _quickSaveShortcodes[code] = true;
+      return fb;
+    } on ReelException catch (e) {
+      // ignore: avoid_print
+      print('[ReelChecker] fetchMeta quicksave failed for $code error=${e.code}');
+      // Preserve last primary error if quicksave also fails but has less specific message
+      // Throw lastError's equivalent
+      if (lastError == 'REEL_TOO_LONG') throw ReelException(lastError!);
+      throw ReelException(e.code);
+    } catch (_) {
+      throw ReelException(lastError ?? 'INSTAGRAM_ERROR');
+    }
   }
 
   /// Download a post by shortcode: fresh meta first (CDN links are
   /// signed and expire), video → mp4, image/carousel → jpg per
   /// image. Same filenames as the Java code.
+  /// Fallback order: primary -> quicksave.my -> error.
   Future<void> _downloadMediaByCode(String shortcode) async {
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
@@ -259,12 +353,15 @@ class Bridge {
     }
     Map<String, dynamic> meta;
     try {
-      meta = await InstagramService.fetchReelMeta(code);
+      final fetched = await _fetchMetaWithFallback(code);
+      if (fetched == null) throw ReelException('INSTAGRAM_ERROR');
+      meta = fetched;
     } catch (_) {
       await _postJson(
           'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       return;
     }
+    final isQuickSave = meta['_viaQuickSave'] == true;
     final mediaType = (meta['mediaType'] as String?) ?? 'video';
     if (mediaType == 'video') {
       final vUrl = (meta['videoUrl'] as String?) ?? '';
@@ -273,7 +370,8 @@ class Bridge {
             'onDownloadResult', {'ok': false, 'error': 'NO_VIDEO_URL'});
         return;
       }
-      final res = await _downloadOne(vUrl, '$code.mp4', 'video/mp4');
+      final res = await _downloadOne(vUrl, '$code.mp4', 'video/mp4',
+          useQuickSaveUA: isQuickSave);
       res['mediaType'] = 'video';
       await _postJson('onDownloadResult', res);
       return;
@@ -290,7 +388,8 @@ class Bridge {
       final u = imgs[i] as String? ?? '';
       if (u.isEmpty) continue;
       final fn = imgs.length > 1 ? '${code}_${i + 1}.jpg' : '$code.jpg';
-      final res = await _downloadOne(u, fn, 'image/jpeg');
+      final res = await _downloadOne(u, fn, 'image/jpeg',
+          useQuickSaveUA: isQuickSave);
       if (res['ok'] == true) {
         done++;
         lastFile = fn;
@@ -334,6 +433,7 @@ class Bridge {
     }
     final isVideo = mediaType == 'video';
     final isCarousel = mediaType == 'carousel';
+    final isQuickSave = _quickSaveShortcodes[code] == true;
     var done = 0;
     var lastFile = '';
     for (var i = 0; i < urls.length; i++) {
@@ -354,7 +454,7 @@ class Bridge {
         fn = '$code.jpg';
         mime = 'image/jpeg';
       }
-      final res = await _downloadOne(u, fn, mime);
+      final res = await _downloadOne(u, fn, mime, useQuickSaveUA: isQuickSave);
       if (res['ok'] == true) {
         done++;
         lastFile = fn;
@@ -393,9 +493,10 @@ class Bridge {
 
   /// Download a post from the account grid: video → mp4 from
   /// videoUrl, image → jpg from the HD URL (not the thumbnail).
-  /// If the video URL is missing, one attempt fetches fresh meta;
-  /// if the video still cannot be downloaded, the HD image is
-  /// downloaded instead and flagged imageOnly=true.
+  /// If the video URL is missing, one attempt fetches fresh meta
+  /// (primary -> quicksave fallback); if the video still cannot be
+  /// downloaded, the HD image is downloaded instead and flagged
+  /// imageOnly=true.
   Future<void> _downloadPost(String shortcode, String thumbUrl, bool isVideo,
       String videoUrl, String hdUrl) async {
     final code = _cleanCode(shortcode);
@@ -407,20 +508,30 @@ class Bridge {
     final hiRes = hdUrl.trim().isNotEmpty ? hdUrl.trim() : thumbUrl.trim();
     if (isVideo) {
       var vUrl = videoUrl.trim();
+      bool viaQuickSave = false;
       if (vUrl.isEmpty) {
         try {
-          final meta = await InstagramService.fetchReelMeta(code);
-          vUrl = (meta['videoUrl'] as String?) ?? '';
+          final fetched = await _fetchMetaWithFallback(code);
+          if (fetched != null) {
+            vUrl = (fetched['videoUrl'] as String?) ?? '';
+            viaQuickSave = fetched['_viaQuickSave'] == true;
+          }
         } catch (_) {}
+        // Also check cached flag
+        if (!viaQuickSave) viaQuickSave = _quickSaveShortcodes[code] == true;
+      } else {
+        viaQuickSave = _quickSaveShortcodes[code] == true;
       }
       if (vUrl.isNotEmpty &&
           (vUrl.startsWith('http://') || vUrl.startsWith('https://'))) {
-        final res = await _downloadOne(vUrl, '$code.mp4', 'video/mp4');
+        final res = await _downloadOne(vUrl, '$code.mp4', 'video/mp4',
+            useQuickSaveUA: viaQuickSave);
         await _postJson('onMediaDownloadResult', res);
         return;
       }
       if (hiRes.isNotEmpty) {
-        final res = await _downloadOne(hiRes, '$code.jpg', 'image/jpeg');
+        final res = await _downloadOne(hiRes, '$code.jpg', 'image/jpeg',
+            useQuickSaveUA: viaQuickSave);
         res['imageOnly'] = true;
         await _postJson('onMediaDownloadResult', res);
         return;
