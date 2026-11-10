@@ -64,11 +64,8 @@ jobs:
         with:
           tag_name: v4.4.4
           name: v4.4.4 - quicksave fallback OTA
-          body: |
-            v4.4.4: ضيف quicksave.my كـ FALLBACK (primary -> quicksave -> error) + تحميل بنفس UA فوراً بلا cache
+          body: v4.4.4 quicksave fallback
           files: build/app/outputs/flutter-apk/app-release.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fail_on_unmatched_files: false
 
   ios:
     name: iOS (compile check, unsigned)
