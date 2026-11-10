@@ -58,6 +58,17 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v4.4.4
+          name: v4.4.4 - quicksave fallback OTA
+          body: |
+            v4.4.4: ضيف quicksave.my كـ FALLBACK (primary -> quicksave -> error) + تحميل بنفس UA فوراً بلا cache
+          files: build/app/outputs/flutter-apk/app-release.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   ios:
     name: iOS (compile check, unsigned)
     runs-on: macos-latest
