@@ -786,12 +786,20 @@ function onReelResult(jsonString) {
       : 'تنزيل الصورة';
   } else {
     photo.style.display = 'none';
-    /* v4.4.1: الريل كيخدم مباشرة ملي يظهر — المشغل مخفي حتى يبدا التشغيل فعلاً،
-       باش ما يبانش المربع الرمادي قبل ما يخدم. إلا التشغيل التلقائي تمنع،
-       كيبان المشغل بالأزرار باش يضغط play. */
-    player.style.display = 'none';
-    player.poster = r.thumbUrl || '';
+    /* v4.4.8: معاينة الفيديو — thumbUrl دابا data:URL (محمّل بـ Dart مع headers صحاح) باش مايبقاش كحل،
+       والفيديو إلا ما خدمش بسبب CDN headers كيبقى البوستر باين ورسالة واضحة. */
+    player.style.display = 'block';
+    player.poster = r.thumbUrl || r.thumbnail || r.posterUrl || '';
     player.src = r.videoUrl;
+    player.onerror = function() {
+      // CDN رفض التشغيل المباشر (يحتاج UA/Referer) — نوري الصورة كـ fallback
+      if ((r.thumbUrl || r.thumbnail) && photo.style.display !== 'block') {
+        player.style.display = 'none';
+        photo.src = r.thumbUrl || r.thumbnail || '';
+        photo.style.display = 'block';
+        photo.onerror = function() { this.style.display = 'none'; };
+      }
+    };
     /* v4.4.3: صوت منفصل — السيرفر كيرجع فيديو بلا صوت (DASH)؛ إلا كان عندنا
        رابط صوت والفيديو ماشي ملف مدمج (/dl/ فيه الصوت أصلاً)، كنشغلو عنصر
        صوت مخفي متزامن مع الفيديو (تشغيل/إيقاف/تقديم/صوت). */
@@ -816,11 +824,11 @@ function onReelResult(jsonString) {
       player.onplay = null; player.onpause = null; player.onseeked = null;
       player.onended = null; player.onvolumechange = null; player.ontimeupdate = null;
     }
-    player.onplaying = function() { player.style.display = 'block'; };
+    player.onplaying = function() { player.style.display = 'block'; photo.style.display = 'none'; };
     try {
       var pr = player.play();
-      if (pr && pr.catch) pr.catch(function() { player.style.display = 'block'; });
-    } catch (e) { player.style.display = 'block'; }
+      if (pr && pr.catch) pr.catch(function() {});
+    } catch (e) {}
     document.getElementById('dlBtn').textContent = 'تنزيل الريل';
   }
   var card = document.getElementById('card');
