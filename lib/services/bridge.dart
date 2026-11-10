@@ -7,6 +7,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -136,6 +137,32 @@ class Bridge {
     return raw.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
   }
 
+  /// Inline thumbnail as data URL so WebView preview works even when
+  /// Instagram CDN blocks direct WebView request (needs UA/Referer).
+  /// Falls back to original URL on failure.
+  Future<void> _inlineThumbnail(Map<String, dynamic> result) async {
+    final thumb = (result['thumbUrl'] as String?) ?? '';
+    if (thumb.isEmpty || thumb.startsWith('data:')) return;
+    try {
+      final resp = await http
+          .get(Uri.parse(thumb), headers: QuickSaveService.downloadHeaders)
+          .timeout(const Duration(seconds: 8));
+      if (resp.statusCode == 200 && resp.bodyBytes.length > 512) {
+        final ct = (resp.headers['content-type'] ?? '').split(';').first.trim();
+        final mime = ct.isNotEmpty && ct.startsWith('image/') ? ct : 'image/jpeg';
+        final b64 = base64Encode(resp.bodyBytes);
+        final dataUrl = 'data:$mime;base64,$b64';
+        result['thumbUrl'] = dataUrl;
+        result['thumbnail'] = dataUrl;
+        // Also set poster for video element
+        result['posterUrl'] = dataUrl;
+        debugPrint('[ReelChecker] thumb inlined ${resp.bodyBytes.length} bytes as $mime');
+      }
+    } catch (e) {
+      debugPrint('[ReelChecker] thumb inline failed: $e');
+    }
+  }
+
   /// Video URL is now obtained ONLY via quicksave.my — the old
   /// downloader server has been removed completely. No fallback to
   /// server or Instagram extraction remains for video.
@@ -153,6 +180,7 @@ class Bridge {
       final result = await QuickSaveService.fetchReelMeta(code);
       debugPrint('[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
       _quickSaveShortcodes[code] = true;
+      await _inlineThumbnail(result);
       await _postJson('onReelResult', result);
       return;
     } on ReelException catch (e) {
