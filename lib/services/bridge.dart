@@ -14,7 +14,6 @@ import 'downloader.dart';
 import 'instagram_service.dart';
 import 'license_service.dart';
 import 'quicksave_service.dart';
-import 'server_service.dart';
 import 'updater.dart';
 
 class Bridge {
@@ -137,54 +136,24 @@ class Bridge {
     return raw.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
   }
 
+  /// Video URL is now obtained ONLY via quicksave.my — the old
+  /// downloader server has been removed completely. No fallback to
+  /// server or Instagram extraction remains for video.
   Future<void> _checkReel(String shortcode) async {
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
       await _postJson('onReelResult', {'ok': false, 'error': 'REEL_NOT_FOUND'});
       return;
     }
-    // v4.4.6: unlicensed devices get no server help — and no
-    // fallback either, or the license would be meaningless.
     if (!await LicenseService.isAllowed()) {
       await _postJson('onReelResult', {'ok': false, 'error': 'NOT_LICENSED'});
       return;
     }
     try {
-      await ServerService.ensureLoaded();
-      final viaServer = await ServerService.parseMedia(
-          'https://www.instagram.com/reel/$code/');
-      if (viaServer != null) {
-        debugPrint('[ReelChecker] source: server succeeded for $code');
-        _quickSaveShortcodes[code] = false;
-        await _postJson('onReelResult', viaServer);
-        return;
-      } else {
-        debugPrint('[ReelChecker] source: server failed/null for $code -> trying primary Instagram');
-      }
-    } catch (e) {
-      debugPrint('[ReelChecker] source: server error for $code: $e -> trying primary Instagram');
-    }
-
-    String? lastPrimaryError;
-    try {
-      final meta = await InstagramService.fetchReelMeta(code);
-      debugPrint('[ReelChecker] source: primary (InstagramService) succeeded for $code');
-      _quickSaveShortcodes[code] = false;
-      await _postJson('onReelResult', meta);
-      return;
-    } on ReelException catch (e) {
-      lastPrimaryError = e.code;
-      debugPrint('[ReelChecker] source: primary failed for $code error=${e.code} -> trying fallback quicksave.my');
-    } catch (e) {
-      lastPrimaryError = 'INSTAGRAM_ERROR';
-      debugPrint('[ReelChecker] source: primary exception for $code: $e -> trying fallback quicksave.my');
-    }
-
-    try {
-      final fallback = await QuickSaveService.fetchReelMeta(code);
-      debugPrint('[ReelChecker] source: quicksave.my succeeded for $code height=${fallback['height']} label=${fallback['qualityLabel']}');
+      final result = await QuickSaveService.fetchReelMeta(code);
+      debugPrint('[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
       _quickSaveShortcodes[code] = true;
-      await _postJson('onReelResult', fallback);
+      await _postJson('onReelResult', result);
       return;
     } on ReelException catch (e) {
       debugPrint('[ReelChecker] source: quicksave.my failed for $code error=${e.code}');
@@ -192,8 +161,7 @@ class Bridge {
       return;
     } catch (e) {
       debugPrint('[ReelChecker] source: quicksave.my exception for $code: $e');
-      await _postJson(
-          'onReelResult', {'ok': false, 'error': lastPrimaryError ?? 'INSTAGRAM_ERROR'});
+      await _postJson('onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
       return;
     }
   }
@@ -256,37 +224,16 @@ class Bridge {
     await _postJson('onDownloadResult', res);
   }
 
+  /// Video is now fetched ONLY via quicksave.my — no Instagram fallback.
   Future<Map<String, dynamic>?> _fetchMetaWithFallback(String code) async {
-    String? lastError;
-    // v4.4.6: same license gate as _checkReel (account-post downloads).
     if (!await LicenseService.isAllowed()) {
       throw ReelException('NOT_LICENSED');
     }
-    try {
-      final meta = await InstagramService.fetchReelMeta(code);
-      debugPrint('[ReelChecker] fetchMeta primary succeeded for $code');
-      meta['_viaQuickSave'] = false;
-      return meta;
-    } on ReelException catch (e) {
-      lastError = e.code;
-      debugPrint('[ReelChecker] fetchMeta primary failed for $code error=${e.code} -> trying quicksave');
-    } catch (e) {
-      lastError = 'INSTAGRAM_ERROR';
-      debugPrint('[ReelChecker] fetchMeta primary exception for $code: $e');
-    }
-    try {
-      final fb = await QuickSaveService.fetchReelMeta(code);
-      debugPrint('[ReelChecker] fetchMeta quicksave fallback succeeded for $code');
-      fb['_viaQuickSave'] = true;
-      _quickSaveShortcodes[code] = true;
-      return fb;
-    } on ReelException catch (e) {
-      debugPrint('[ReelChecker] fetchMeta quicksave failed for $code error=${e.code}');
-      if (lastError == 'REEL_TOO_LONG') throw ReelException(lastError!);
-      throw ReelException(e.code);
-    } catch (_) {
-      throw ReelException(lastError ?? 'INSTAGRAM_ERROR');
-    }
+    final meta = await QuickSaveService.fetchReelMeta(code);
+    debugPrint('[ReelChecker] fetchMeta quicksave succeeded for $code');
+    meta['_viaQuickSave'] = true;
+    _quickSaveShortcodes[code] = true;
+    return meta;
   }
 
   Future<void> _downloadMediaByCode(String shortcode) async {
@@ -461,4 +408,3 @@ class Bridge {
     await _postJson('onMediaDownloadResult', res);
   }
 }
-

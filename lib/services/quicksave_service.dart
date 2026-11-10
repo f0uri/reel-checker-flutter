@@ -1,6 +1,6 @@
 // ignore_for_file: avoid_print
-// QuickSave fallback — POST https://quicksave.my/api/info
-// Used ONLY when the primary method (server -> Instagram embed/GraphQL) fails.
+// QuickSave — SOLE video source — POST https://quicksave.my/api/info
+// The old downloader server (ServerService/server.json) has been deleted.
 // Spec: 30s timeout, keep only type==video && url!=null, pick highest height,
 // ignore audio with null url, return clear error if none found.
 // Download must use same UA and happen immediately (temporary CDN link, no cache).
