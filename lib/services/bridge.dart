@@ -12,6 +12,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'downloader.dart';
 import 'instagram_service.dart';
+import 'license_service.dart';
 import 'quicksave_service.dart';
 import 'server_service.dart';
 import 'updater.dart';
@@ -142,6 +143,12 @@ class Bridge {
       await _postJson('onReelResult', {'ok': false, 'error': 'REEL_NOT_FOUND'});
       return;
     }
+    // v4.4.6: unlicensed devices get no server help — and no
+    // fallback either, or the license would be meaningless.
+    if (!await LicenseService.isAllowed()) {
+      await _postJson('onReelResult', {'ok': false, 'error': 'NOT_LICENSED'});
+      return;
+    }
     try {
       await ServerService.ensureLoaded();
       final viaServer = await ServerService.parseMedia(
@@ -251,6 +258,10 @@ class Bridge {
 
   Future<Map<String, dynamic>?> _fetchMetaWithFallback(String code) async {
     String? lastError;
+    // v4.4.6: same license gate as _checkReel (account-post downloads).
+    if (!await LicenseService.isAllowed()) {
+      throw ReelException('NOT_LICENSED');
+    }
     try {
       final meta = await InstagramService.fetchReelMeta(code);
       debugPrint('[ReelChecker] fetchMeta primary succeeded for $code');
@@ -450,3 +461,4 @@ class Bridge {
     await _postJson('onMediaDownloadResult', res);
   }
 }
+

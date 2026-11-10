@@ -19,6 +19,17 @@ class NativePlatform {
     }
   }
 
+  /// SHA-256 of the APK signing certificate (v4.4.6 signature
+  /// check). Empty when unreadable or unsupported (iOS).
+  static Future<String> getSignatureSha256() async {
+    try {
+      final sig = await _channel.invokeMethod<String>('getSignatureSha256');
+      return sig ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   static Future<String> getDeviceModel() async {
     try {
       final model = await _channel.invokeMethod<String>('getDeviceModel');
