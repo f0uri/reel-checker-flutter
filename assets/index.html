@@ -789,10 +789,21 @@ function onReelResult(jsonString) {
     /* v4.4.8: معاينة الفيديو — thumbUrl دابا data:URL (محمّل بـ Dart مع headers صحاح) باش مايبقاش كحل،
        والفيديو إلا ما خدمش بسبب CDN headers كيبقى البوستر باين ورسالة واضحة. */
     player.style.display = 'block';
-    player.poster = r.thumbUrl || r.thumbnail || r.posterUrl || '';
+    // v4.4.12: thumbUrl is data:URL if inline succeeded; else original CDN (may be blocked) — handle both
+    var posterUrl = r.thumbUrl || r.thumbnail || r.posterUrl || '';
+    if (posterUrl && posterUrl.startsWith('data:')) {
+      console.log('poster is data:URL, len=' + posterUrl.length);
+    } else if (posterUrl) {
+      console.log('poster is CDN URL (inline failed), will try direct: ' + posterUrl.substring(0, 80));
+    } else {
+      console.log('no poster URL');
+    }
+    player.style.display = 'block';
+    player.poster = posterUrl;
     // v4.4.9: previewUrl is proxied via local server with proper headers (fixes CORS/referer block);
     // fallback to direct CDN URL if proxy not available. Add crossOrigin/referrerPolicy for direct case.
     var previewSrc = r.previewUrl || r.videoUrl || '';
+    console.log('previewSrc=' + (previewSrc ? previewSrc.substring(0, 100) : 'empty') + ' viaProxy=' + !!r.previewUrl);
     player.crossOrigin = 'anonymous';
     if (player.setAttribute) {
       try { player.setAttribute('referrerpolicy', 'no-referrer'); } catch(e) {}
@@ -801,7 +812,9 @@ function onReelResult(jsonString) {
     player.src = previewSrc;
     // Keep original CDN URL for download (previewUrl is local proxy, download should use original)
     if (r.videoUrlOriginal) r._downloadUrl = r.videoUrlOriginal;
+    else if (r.previewUrl) r._downloadUrl = r.videoUrl; // original is r.videoUrl when previewUrl exists via proxy
     player.onerror = function() {
+      console.log('player onerror, previewSrc was proxy=' + (previewSrc===r.previewUrl));
       // Try direct CDN as fallback if proxy failed, else show image
       if (previewSrc && r.previewUrl && r.videoUrl && previewSrc === r.previewUrl) {
         console.log('preview proxy failed, trying direct CDN');
@@ -815,13 +828,29 @@ function onReelResult(jsonString) {
         var p2 = player.play(); if (p2 && p2.catch) p2.catch(function(){});
         return;
       }
-      if ((r.thumbUrl || r.thumbnail) && photo.style.display !== 'block') {
+      if ((r.thumbUrl || r.thumbnail || posterUrl) && photo.style.display !== 'block') {
+        console.log('video failed, showing poster as image fallback');
         player.style.display = 'none';
-        photo.src = r.thumbUrl || r.thumbnail || '';
+        photo.src = posterUrl || r.thumbUrl || r.thumbnail || '';
         photo.style.display = 'block';
-        photo.onerror = function() { this.style.display = 'none'; };
+        photo.onerror = function() { 
+          console.log('poster image also failed');
+          this.style.display = 'none';
+          // Show user-friendly message instead of broken icon
+          var card = document.getElementById('card');
+          if (card && !card.querySelector('.preview-fallback-msg')) {
+            var msg = document.createElement('div');
+            msg.className = 'preview-fallback-msg';
+            msg.style.cssText = 'padding:16px;text-align:center;color:#666;font-size:14px;background:#f5f5f5;border-radius:12px;margin:8px;';
+            msg.textContent = 'المعاينة غير متاحة حالياً، لكن التنزيل يشتغل — اضغط \"تنزيل الريل\"';
+            card.querySelector('.pad').insertBefore(msg, card.querySelector('.pad').firstChild);
+          }
+        };
       }
     };
+    player.onloadstart = function() { console.log('player loadstart'); };
+    player.onloadeddata = function() { console.log('player loadeddata'); };
+    player.oncanplay = function() { console.log('player canplay'); };
     /* v4.4.3: صوت منفصل — السيرفر كيرجع فيديو بلا صوت (DASH)؛ إلا كان عندنا
        رابط صوت والفيديو ماشي ملف مدمج (/dl/ فيه الصوت أصلاً)، كنشغلو عنصر
        صوت مخفي متزامن مع الفيديو (تشغيل/إيقاف/تقديم/صوت). */

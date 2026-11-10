@@ -26,15 +26,19 @@ class PreviewProxy {
   static Future<String?> register(String shortcode, String cdnUrl) async {
     if (cdnUrl.isEmpty) return null;
     await _ensureServer();
-    if (_server == null) return null;
+    if (_server == null) {
+      print('[PreviewProxy] register failed: server not running for $shortcode');
+      return null;
+    }
     _urlMap[shortcode] = cdnUrl;
-    return 'http://127.0.0.1:$_port/preview/$shortcode.mp4';
+    final url = 'http://127.0.0.1:$_port/preview/$shortcode.mp4';
+    print('[PreviewProxy] registered $shortcode -> $url (cdn ${cdnUrl.substring(0, cdnUrl.length > 60 ? 60 : cdnUrl.length)}...)');
+    return url;
   }
 
   static Future<void> _ensureServer() async {
     if (_server != null) return;
     if (_starting) {
-      // wait for concurrent start
       for (var i = 0; i < 20; i++) {
         await Future.delayed(const Duration(milliseconds: 100));
         if (_server != null || !_starting) break;
@@ -43,11 +47,18 @@ class PreviewProxy {
     }
     _starting = true;
     try {
-      // Bind to loopback only; 0 = random free port
-      _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      // Try loopback first, then anyIPv4 as fallback (some OEMs block loopback bind)
+      try {
+        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      } catch (e) {
+        print('[PreviewProxy] loopback bind failed: $e, trying anyIPv4');
+        _server = await HttpServer.bind(InternetAddress.anyIPv4, 0);
+      }
       _port = _server!.port;
       _server!.listen(_handleRequest);
-    } catch (_) {
+      print('[PreviewProxy] listening on 127.0.0.1:$_port (anyIPv4 fallback if needed)');
+    } catch (e) {
+      print('[PreviewProxy] failed to start server: $e');
       _server = null;
       _port = 0;
     } finally {

@@ -140,28 +140,48 @@ class Bridge {
 
   /// Inline thumbnail as data URL so WebView preview works even when
   /// Instagram CDN blocks direct WebView request (needs UA/Referer).
-  /// Falls back to original URL on failure.
+  /// Tries 3 header sets: QuickSave (Chrome 139), Instagram (Safari), no headers.
+  /// Falls back to original URL only if all fail — caller should show placeholder text.
   Future<void> _inlineThumbnail(Map<String, dynamic> result) async {
     final thumb = (result['thumbUrl'] as String?) ?? '';
     if (thumb.isEmpty || thumb.startsWith('data:')) return;
-    try {
-      final resp = await http
-          .get(Uri.parse(thumb), headers: QuickSaveService.downloadHeaders)
-          .timeout(const Duration(seconds: 8));
-      if (resp.statusCode == 200 && resp.bodyBytes.length > 512) {
-        final ct = (resp.headers['content-type'] ?? '').split(';').first.trim();
-        final mime = ct.isNotEmpty && ct.startsWith('image/') ? ct : 'image/jpeg';
-        final b64 = base64Encode(resp.bodyBytes);
-        final dataUrl = 'data:$mime;base64,$b64';
-        result['thumbUrl'] = dataUrl;
-        result['thumbnail'] = dataUrl;
-        // Also set poster for video element
-        result['posterUrl'] = dataUrl;
-        debugPrint('[ReelChecker] thumb inlined ${resp.bodyBytes.length} bytes as $mime');
+    // Header sets to try in order
+    final headerSets = <Map<String, String>>[
+      QuickSaveService.downloadHeaders,
+      {
+        'User-Agent': InstagramService.userAgents[0],
+        'Referer': 'https://www.instagram.com/',
+        'Accept': 'image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      {'Accept': 'image/*,*/*;q=0.8'}, // bare
+    ];
+    for (var i = 0; i < headerSets.length; i++) {
+      try {
+        debugPrint('[ReelChecker] thumb inline attempt ${i + 1}/3 for $thumb');
+        final resp = await http
+            .get(Uri.parse(thumb), headers: headerSets[i])
+            .timeout(const Duration(seconds: 8));
+        debugPrint('[ReelChecker] thumb attempt ${i + 1} status=${resp.statusCode} len=${resp.bodyBytes.length} ct=${resp.headers['content-type']}');
+        if (resp.statusCode == 200 && resp.bodyBytes.length > 512) {
+          final ct = (resp.headers['content-type'] ?? '').split(';').first.trim();
+          final mime = ct.isNotEmpty && ct.startsWith('image/') ? ct : 'image/jpeg';
+          final b64 = base64Encode(resp.bodyBytes);
+          final dataUrl = 'data:$mime;base64,$b64';
+          result['thumbUrl'] = dataUrl;
+          result['thumbnail'] = dataUrl;
+          result['posterUrl'] = dataUrl;
+          debugPrint('[ReelChecker] thumb inlined ${resp.bodyBytes.length} bytes as $mime on attempt ${i + 1}');
+          return;
+        }
+        // 403/404 on this header set — try next
+        debugPrint('[ReelChecker] thumb attempt ${i + 1} failed status=${resp.statusCode}');
+      } catch (e) {
+        debugPrint('[ReelChecker] thumb inline attempt ${i + 1} error: $e');
       }
-    } catch (e) {
-      debugPrint('[ReelChecker] thumb inline failed: $e');
     }
+    // All attempts failed — keep original URL but log for diagnostics
+    debugPrint('[ReelChecker] thumb inline all attempts failed, keeping original URL (WebView will show broken poster, fallback will show placeholder)');
   }
 
   /// Video URL is now obtained ONLY via quicksave.my — the old
