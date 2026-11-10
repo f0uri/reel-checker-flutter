@@ -60,7 +60,7 @@ jobs:
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v4.4.4
           name: v4.4.4 - quicksave fallback OTA
@@ -68,6 +68,8 @@ jobs:
             v4.4.4: ضيف quicksave.my كـ FALLBACK (primary -> quicksave -> error) + تحميل بنفس UA فوراً بلا cache
           files: build/app/outputs/flutter-apk/app-release.apk
           token: ${{ secrets.GITHUB_TOKEN }}
+          fail_on_unmatched_files: false
+          generate_release_notes: false
 
   ios:
     name: iOS (compile check, unsigned)
