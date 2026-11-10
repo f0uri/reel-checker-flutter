@@ -1,7 +1,7 @@
 name: reel_checker
 description: تنزيل ريلزات — verify and download Instagram Reels (Android + iOS)
 publish_to: "none"
-version: 4.4.9+52
+version: 4.4.10+53
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
