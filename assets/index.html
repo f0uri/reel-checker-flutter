@@ -67,6 +67,11 @@
     background: linear-gradient(135deg, var(--accent1), var(--accent3));
     box-shadow: 0 0 10px rgba(244, 63, 142, .9);
   }
+  /* v4.4.5: النقطة خضراء ملي يتجلب الريلز بنجاح */
+  .eyebrow.ready::before {
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, .9);
+  }
   h1 {
     margin: 14px 0 6px; font-size: 34px; line-height: 1.15; font-weight: 800; letter-spacing: -.5px;
     background: linear-gradient(180deg, #1c1c1e 20%, rgba(28,28,30,.72));
@@ -326,7 +331,7 @@
     box-shadow: 0 24px 56px rgba(0, 0, 0, .12), 0 0 0 1px rgba(0,0,0,.04);
     animation: popIn .5s var(--spring) both;
   }
-  .card video { width: 100%; display: block; background: #000; max-height: 70vh; }
+  .card video { width: 100%; display: block; background: #000; max-height: 70vh; object-fit: cover; }
   /* v3.5: معاينة الصورة فبطاقة الفحص — للمنشورات ديال الصور */
   .card img.photo-preview { width: 100%; display: block; background: #000; max-height: 70vh; object-fit: contain; }
   .card .pad { padding: 16px; background: linear-gradient(180deg, rgba(0,0,0,.02), transparent); }
@@ -657,6 +662,7 @@ function setMode(m) {
   document.getElementById('card').style.display = 'none';
   document.getElementById('accountCard').style.display = 'none';
   document.getElementById('dlStatus').style.display = 'none';
+  document.querySelector('.eyebrow').classList.remove('ready');
   if (m === 'account') {
     input.placeholder = 'اسم المستخدم أو رابط الحساب';
     btn.textContent = 'بحث عن الحساب';
@@ -683,6 +689,7 @@ function clearInput() {
   document.getElementById('err').style.display = 'none';
   document.getElementById('dlStatus').style.display = 'none';
   document.getElementById('updStatus').style.display = 'none';
+  document.querySelector('.eyebrow').classList.remove('ready');
   var player = document.getElementById('player');
   try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) {}
   var checkBtn = document.getElementById('checkBtn');
@@ -729,6 +736,7 @@ function check() {
   document.getElementById('card').style.display = 'none';
   document.getElementById('photoPreview').style.display = 'none';
   document.getElementById('dlStatus').style.display = 'none';
+  document.querySelector('.eyebrow').classList.remove('ready');
   document.getElementById('dlBtn').disabled = false;
   document.getElementById('dlBtn').textContent = 'تنزيل الريل';
   var rawLink = document.getElementById('input').value.trim();
@@ -815,6 +823,8 @@ function onReelResult(jsonString) {
   }
   var card = document.getElementById('card');
   card.style.display = 'block';
+  /* v4.4.5: النقطة خضراء ملي يتجلب الريلز بنجاح */
+  document.querySelector('.eyebrow').classList.add('ready');
   card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
 }
 
