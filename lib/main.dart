@@ -11,7 +11,9 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'services/bridge.dart';
+import 'services/license_service.dart';
 import 'services/platform.dart';
+import 'services/security.dart';
 import 'services/server_service.dart';
 import 'services/updater.dart';
 
@@ -85,11 +87,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
     _updater.attach(_controller);
     unawaited(_updater.restoreBlockedState());
+    unawaited(_initApp());
+  }
+
+  /// v4.4.6: a build that is not signed with our key shows a
+  /// blocked page and never loads the real UI. The license verdict
+  /// is refreshed in the background (cached, so a sleeping server
+  /// never delays launch).
+  Future<void> _initApp() async {
+    if (!await SecurityService.isGenuineBuild()) {
+      await _controller.loadHtmlString(_blockedHtml);
+      return;
+    }
     // Warm the downloader server in the background so the first
     // check doesn't pay the ~40 s wake-up wait.
     unawaited(ServerService.warmUp());
-    unawaited(_controller.loadFlutterAsset('assets/index.html'));
+    unawaited(LicenseService.refresh());
+    await _controller.loadFlutterAsset('assets/index.html');
   }
+
+  static const String _blockedHtml = '''
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تنزيل ريلزات</title><style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;font-family:system-ui;color:#1c1c1e;text-align:center;padding:24px;box-sizing:border-box}
+h1{font-size:22px;margin:0 0 12px}p{font-size:15px;color:rgba(0,0,0,.6);margin:0;line-height:1.7}
+</style></head><body><div><h1>هاد النسخة ماشي أصلية</h1>
+<p>هاد التطبيق خاص بصاحبو — نزّل النسخة الأصلية من المصدر الرسمي.</p></div></body></html>
+''';
 
   @override
   void dispose() {
