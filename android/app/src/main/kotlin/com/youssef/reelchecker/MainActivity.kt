@@ -2,6 +2,7 @@ package com.youssef.reelchecker
 
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -14,10 +15,14 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 /**
  * Native side of the "reelchecker" MethodChannel — the calls Dart
  * makes through lib/services/platform.dart:
+ *  - getSignatureSha256: SHA-256 of the APK signing certificate
+ *    (uppercase hex, no colons) — v4.4.6: the Dart side refuses to
+ *    run a build that is not signed with our key.
  *  - getDeviceId: Settings.Secure.ANDROID_ID (survives reinstall /
  *    clear-data; changes only on factory reset or a new phone)
  *  - getDeviceModel / getVersionName / getVersionCode
@@ -46,6 +51,7 @@ class MainActivity : FlutterActivity() {
                             contentResolver, Settings.Secure.ANDROID_ID
                         )
                     )
+                    "getSignatureSha256" -> result.success(getSignatureSha256())
                     "getDeviceModel" -> result.success(Build.MODEL)
                     "getVersionName" -> result.success(packageInfoVersionName())
                     "getVersionCode" -> result.success(packageInfoVersionCode())
@@ -83,6 +89,34 @@ class MainActivity : FlutterActivity() {
         if (Intent.ACTION_SEND == intent.action && "text/plain" == intent.type) {
             val text = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!text.isNullOrBlank()) pendingSharedText = text
+        }
+    }
+
+    /** SHA-256 of the APK signing certificate (uppercase hex, no
+     *  colons). Empty string when it cannot be read — the Dart side
+     *  treats that as "cannot verify" and allows the app, so a
+     *  broken check never bricks the genuine build. */
+    private fun getSignatureSha256(): String {
+        return try {
+            val info = if (Build.VERSION.SDK_INT >= 28) {
+                packageManager.getPackageInfo(
+                    packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(
+                    packageName, PackageManager.GET_SIGNATURES)
+            }
+            val sigs = if (Build.VERSION.SDK_INT >= 28) {
+                info.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures
+            }
+            val sig = sigs?.firstOrNull() ?: return ""
+            val md = MessageDigest.getInstance("SHA-256")
+            md.digest(sig.toByteArray()).joinToString("") { "%02X".format(it) }
+        } catch (e: Exception) {
+            ""
         }
     }
 
