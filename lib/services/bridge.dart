@@ -14,6 +14,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'downloader.dart';
 import 'instagram_service.dart';
 import 'license_service.dart';
+import 'preview_proxy.dart';
 import 'quicksave_service.dart';
 import 'updater.dart';
 
@@ -181,6 +182,17 @@ class Bridge {
       debugPrint('[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
       _quickSaveShortcodes[code] = true;
       await _inlineThumbnail(result);
+      // Proxy video for preview so <video> can stream with proper headers (CORS/referer fix)
+      final vUrl = (result['videoUrl'] as String?) ?? '';
+      if (vUrl.isNotEmpty) {
+        final proxy = await PreviewProxy.register(code, vUrl);
+        if (proxy != null) {
+          result['previewUrl'] = proxy;
+          // Keep original for download; previewUrl is what <video> will use
+          result['videoUrlOriginal'] = vUrl;
+          debugPrint('[ReelChecker] preview proxy $proxy for $code');
+        }
+      }
       await _postJson('onReelResult', result);
       return;
     } on ReelException catch (e) {

@@ -790,9 +790,27 @@ function onReelResult(jsonString) {
        والفيديو إلا ما خدمش بسبب CDN headers كيبقى البوستر باين ورسالة واضحة. */
     player.style.display = 'block';
     player.poster = r.thumbUrl || r.thumbnail || r.posterUrl || '';
-    player.src = r.videoUrl;
+    // v4.4.9: previewUrl is proxied via local server with proper headers (fixes CORS/referer block);
+    // fallback to direct CDN URL if proxy not available. Add crossOrigin/referrerPolicy for direct case.
+    var previewSrc = r.previewUrl || r.videoUrl || '';
+    player.crossOrigin = 'anonymous';
+    if (player.setAttribute) {
+      try { player.setAttribute('referrerpolicy', 'no-referrer'); } catch(e) {}
+      try { player.setAttribute('crossorigin', 'anonymous'); } catch(e) {}
+    }
+    player.src = previewSrc;
+    // Keep original CDN URL for download (previewUrl is local proxy, download should use original)
+    if (r.videoUrlOriginal) r._downloadUrl = r.videoUrlOriginal;
     player.onerror = function() {
-      // CDN رفض التشغيل المباشر (يحتاج UA/Referer) — نوري الصورة كـ fallback
+      // Try direct CDN as fallback if proxy failed, else show image
+      if (previewSrc && r.previewUrl && r.videoUrl && previewSrc === r.previewUrl) {
+        console.log('preview proxy failed, trying direct CDN');
+        player.onerror = null;
+        player.src = r.videoUrl;
+        player.load();
+        var p2 = player.play(); if (p2 && p2.catch) p2.catch(function(){});
+        return;
+      }
       if ((r.thumbUrl || r.thumbnail) && photo.style.display !== 'block') {
         player.style.display = 'none';
         photo.src = r.thumbUrl || r.thumbnail || '';
@@ -1220,7 +1238,10 @@ function downloadReel() {
   if (window.AndroidBridge && AndroidBridge.downloadMediaUrls) {
     var urls = [];
     if (current.mediaType === 'video') {
-      if (current.videoUrl) urls.push(current.videoUrl);
+      // Prefer original CDN URL for download (previewUrl is local proxy)
+      if (current._downloadUrl) urls.push(current._downloadUrl);
+      else if (current.videoUrlOriginal) urls.push(current.videoUrlOriginal);
+      else if (current.videoUrl) urls.push(current.videoUrl);
     } else if (current.imageUrls && current.imageUrls.length > 0) {
       urls = current.imageUrls.slice();
     } else if (current.thumbUrl) {
