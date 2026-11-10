@@ -14,7 +14,6 @@ import 'services/bridge.dart';
 import 'services/license_service.dart';
 import 'services/platform.dart';
 import 'services/security.dart';
-import 'services/server_service.dart';
 import 'services/updater.dart';
 
 void main() {
@@ -99,9 +98,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _controller.loadHtmlString(_blockedHtml);
       return;
     }
-    // Warm the downloader server in the background so the first
-    // check doesn't pay the ~40 s wake-up wait.
-    unawaited(ServerService.warmUp());
     unawaited(LicenseService.refresh());
     await _controller.loadFlutterAsset('assets/index.html');
   }
