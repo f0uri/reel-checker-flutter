@@ -806,6 +806,10 @@ function onReelResult(jsonString) {
       if (previewSrc && r.previewUrl && r.videoUrl && previewSrc === r.previewUrl) {
         console.log('preview proxy failed, trying direct CDN');
         player.onerror = null;
+        try { player.removeAttribute('crossorigin'); } catch(e) {}
+        try { player.removeAttribute('crossOrigin'); } catch(e) {}
+        try { player.crossOrigin = ''; } catch(e) {}
+        try { player.removeAttribute('crossorigin'); player.crossOrigin = null; } catch(e) {}
         player.src = r.videoUrl;
         player.load();
         var p2 = player.play(); if (p2 && p2.catch) p2.catch(function(){});
