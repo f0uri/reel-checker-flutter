@@ -3,6 +3,7 @@
 // Dart port of the AndroidBridge @JavascriptInterface in
 // MainActivity.java (v2.2–v3.13).
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -162,26 +163,50 @@ class Bridge {
         final resp = await http
             .get(Uri.parse(thumb), headers: headerSets[i])
             .timeout(const Duration(seconds: 8));
-        debugPrint('[ReelChecker] thumb attempt ${i + 1} status=${resp.statusCode} len=${resp.bodyBytes.length} ct=${resp.headers['content-type']}');
+        debugPrint(
+            '[ReelChecker] thumb attempt ${i + 1} status=${resp.statusCode} len=${resp.bodyBytes.length} ct=${resp.headers['content-type']}');
         if (resp.statusCode == 200 && resp.bodyBytes.length > 512) {
-          final ct = (resp.headers['content-type'] ?? '').split(';').first.trim();
-          final mime = ct.isNotEmpty && ct.startsWith('image/') ? ct : 'image/jpeg';
+          final ct =
+              (resp.headers['content-type'] ?? '').split(';').first.trim();
+          final mime =
+              ct.isNotEmpty && ct.startsWith('image/') ? ct : 'image/jpeg';
           final b64 = base64Encode(resp.bodyBytes);
           final dataUrl = 'data:$mime;base64,$b64';
           result['thumbUrl'] = dataUrl;
           result['thumbnail'] = dataUrl;
           result['posterUrl'] = dataUrl;
-          debugPrint('[ReelChecker] thumb inlined ${resp.bodyBytes.length} bytes as $mime on attempt ${i + 1}');
+          debugPrint(
+              '[ReelChecker] thumb inlined ${resp.bodyBytes.length} bytes as $mime on attempt ${i + 1}');
           return;
         }
         // 403/404 on this header set — try next
-        debugPrint('[ReelChecker] thumb attempt ${i + 1} failed status=${resp.statusCode}');
+        debugPrint(
+            '[ReelChecker] thumb attempt ${i + 1} failed status=${resp.statusCode}');
       } catch (e) {
         debugPrint('[ReelChecker] thumb inline attempt ${i + 1} error: $e');
       }
     }
     // All attempts failed — keep original URL but log for diagnostics
-    debugPrint('[ReelChecker] thumb inline all attempts failed, keeping original URL (WebView will show broken poster, fallback will show placeholder)');
+    debugPrint(
+        '[ReelChecker] thumb inline all attempts failed, keeping original URL (WebView will show broken poster, fallback will show placeholder)');
+  }
+
+  /// Inline the thumbnail in the background and push it to the page
+  /// when it arrives (onThumbInlined). Never blocks the reel result:
+  /// the page already shows the original thumbUrl as poster meanwhile.
+  /// Only a data: URL is sent — if all 3 header sets fail, the page
+  /// simply keeps the original poster.
+  Future<void> _inlineThumbnailInBackground(
+      String code, Map<String, dynamic> result) async {
+    try {
+      await _inlineThumbnail(result);
+      final dataUrl = (result['thumbUrl'] as String?) ?? '';
+      if (dataUrl.startsWith('data:')) {
+        await _postJson(
+            'onThumbInlined', {'shortcode': code, 'thumbUrl': dataUrl});
+        debugPrint('[ReelChecker] thumb inlined in background for $code');
+      }
+    } catch (_) {}
   }
 
   /// Video URL is now obtained ONLY via quicksave.my — the old
@@ -199,9 +224,9 @@ class Bridge {
     }
     try {
       final result = await QuickSaveService.fetchReelMeta(code);
-      debugPrint('[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
+      debugPrint(
+          '[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
       _quickSaveShortcodes[code] = true;
-      await _inlineThumbnail(result);
       // Proxy video for preview so <video> can stream with proper headers (CORS/referer fix)
       final vUrl = (result['videoUrl'] as String?) ?? '';
       if (vUrl.isNotEmpty) {
@@ -214,14 +239,22 @@ class Bridge {
         }
       }
       await _postJson('onReelResult', result);
+      // Thumbnail inlining now runs in the background: it used to block
+      // the result for up to 24s (3 header sets x 8s timeout) whenever
+      // the CDN thumbnail stalls, which is most of the 30-40s wait.
+      // The page shows the original thumbUrl as poster meanwhile and
+      // swaps to the inlined data: URL when it arrives (onThumbInlined).
+      unawaited(_inlineThumbnailInBackground(code, result));
       return;
     } on ReelException catch (e) {
-      debugPrint('[ReelChecker] source: quicksave.my failed for $code error=${e.code}');
+      debugPrint(
+          '[ReelChecker] source: quicksave.my failed for $code error=${e.code}');
       await _postJson('onReelResult', {'ok': false, 'error': e.code});
       return;
     } catch (e) {
       debugPrint('[ReelChecker] source: quicksave.my exception for $code: $e');
-      await _postJson('onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
+      await _postJson(
+          'onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
       return;
     }
   }
@@ -233,7 +266,8 @@ class Bridge {
     } on AccountException catch (e) {
       await _postJson('onAccountResult', {'ok': false, 'error': e.code});
     } catch (_) {
-      await _postJson('onAccountResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
+      await _postJson(
+          'onAccountResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
     }
   }
 
@@ -274,7 +308,8 @@ class Bridge {
     if (code.isEmpty ||
         videoUrl.trim().isEmpty ||
         !(videoUrl.startsWith('http://') || videoUrl.startsWith('https://'))) {
-      await _postJson('onDownloadResult', {'ok': false, 'error': 'NO_VIDEO_URL'});
+      await _postJson(
+          'onDownloadResult', {'ok': false, 'error': 'NO_VIDEO_URL'});
       return;
     }
     final isQuickSave = _quickSaveShortcodes[code] == true;
@@ -299,7 +334,8 @@ class Bridge {
   Future<void> _downloadMediaByCode(String shortcode) async {
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
-      await _postJson('onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       return;
     }
     Map<String, dynamic> meta;
@@ -308,7 +344,8 @@ class Bridge {
       if (fetched == null) throw ReelException('INSTAGRAM_ERROR');
       meta = fetched;
     } catch (_) {
-      await _postJson('onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       return;
     }
     final isQuickSave = meta['_viaQuickSave'] == true;
@@ -316,7 +353,8 @@ class Bridge {
     if (mediaType == 'video') {
       final vUrl = (meta['videoUrl'] as String?) ?? '';
       if (vUrl.isEmpty) {
-        await _postJson('onDownloadResult', {'ok': false, 'error': 'NO_VIDEO_URL'});
+        await _postJson(
+            'onDownloadResult', {'ok': false, 'error': 'NO_VIDEO_URL'});
         return;
       }
       final res = await _downloadOne(vUrl, '$code.mp4', 'video/mp4',
@@ -327,7 +365,8 @@ class Bridge {
     }
     final imgs = (meta['imageUrls'] as List?) ?? [];
     if (imgs.isEmpty) {
-      await _postJson('onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       return;
     }
     var done = 0;
@@ -336,7 +375,8 @@ class Bridge {
       final u = imgs[i] as String? ?? '';
       if (u.isEmpty) continue;
       final fn = imgs.length > 1 ? '${code}_${i + 1}.jpg' : '$code.jpg';
-      final res = await _downloadOne(u, fn, 'image/jpeg', useQuickSaveUA: isQuickSave);
+      final res =
+          await _downloadOne(u, fn, 'image/jpeg', useQuickSaveUA: isQuickSave);
       if (res['ok'] == true) {
         done++;
         lastFile = fn;
@@ -350,7 +390,8 @@ class Bridge {
         'filename': lastFile,
       });
     } else {
-      await _postJson('onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
     }
   }
 
@@ -368,7 +409,8 @@ class Bridge {
       if (code.isNotEmpty) {
         await _downloadMediaByCode(shortcode);
       } else {
-        await _postJson('onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+        await _postJson(
+            'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       }
       return;
     }
@@ -379,7 +421,9 @@ class Bridge {
     var lastFile = '';
     for (var i = 0; i < urls.length; i++) {
       final u = urls[i];
-      if (u.isEmpty || !(u.startsWith('http://') || u.startsWith('https://'))) continue;
+      if (u.isEmpty || !(u.startsWith('http://') || u.startsWith('https://'))) {
+        continue;
+      }
       final String fn;
       final String mime;
       if (isVideo) {
@@ -401,23 +445,29 @@ class Bridge {
     if (done > 0) {
       await _postJson('onDownloadResult', {
         'ok': true,
-        'mediaType': isVideo ? 'video' : (isCarousel || urls.length > 1 ? 'carousel' : 'image'),
+        'mediaType': isVideo
+            ? 'video'
+            : (isCarousel || urls.length > 1 ? 'carousel' : 'image'),
         'count': done,
         'filename': lastFile,
       });
     } else {
-      await _postJson('onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
     }
   }
 
   Future<void> _downloadProfilePic(String url, String username) async {
-    if (url.trim().isEmpty || !(url.startsWith('http://') || url.startsWith('https://'))) {
-      await _postJson('onMediaDownloadResult', {'ok': false, 'error': 'NO_IMAGE'});
+    if (url.trim().isEmpty ||
+        !(url.startsWith('http://') || url.startsWith('https://'))) {
+      await _postJson(
+          'onMediaDownloadResult', {'ok': false, 'error': 'NO_IMAGE'});
       return;
     }
     var clean = username.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '');
     if (clean.isEmpty) clean = 'profile';
-    final res = await _downloadOne(url.trim(), '${clean}_profile.jpg', 'image/jpeg');
+    final res =
+        await _downloadOne(url.trim(), '${clean}_profile.jpg', 'image/jpeg');
     await _postJson('onMediaDownloadResult', res);
   }
 
@@ -425,7 +475,8 @@ class Bridge {
       String videoUrl, String hdUrl) async {
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
-      await _postJson('onMediaDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onMediaDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       return;
     }
     final hiRes = hdUrl.trim().isNotEmpty ? hdUrl.trim() : thumbUrl.trim();
@@ -444,7 +495,8 @@ class Bridge {
       } else {
         viaQuickSave = _quickSaveShortcodes[code] == true;
       }
-      if (vUrl.isNotEmpty && (vUrl.startsWith('http://') || vUrl.startsWith('https://'))) {
+      if (vUrl.isNotEmpty &&
+          (vUrl.startsWith('http://') || vUrl.startsWith('https://'))) {
         final res = await _downloadOne(vUrl, '$code.mp4', 'video/mp4',
             useQuickSaveUA: viaQuickSave);
         await _postJson('onMediaDownloadResult', res);
@@ -457,11 +509,13 @@ class Bridge {
         await _postJson('onMediaDownloadResult', res);
         return;
       }
-      await _postJson('onMediaDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
+      await _postJson(
+          'onMediaDownloadResult', {'ok': false, 'error': 'DOWNLOAD_FAILED'});
       return;
     }
     if (hiRes.isEmpty) {
-      await _postJson('onMediaDownloadResult', {'ok': false, 'error': 'NO_IMAGE'});
+      await _postJson(
+          'onMediaDownloadResult', {'ok': false, 'error': 'NO_IMAGE'});
       return;
     }
     final res = await _downloadOne(hiRes, '$code.jpg', 'image/jpeg');

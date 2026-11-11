@@ -898,6 +898,25 @@ function onReelResult(jsonString) {
   card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
 }
 
+/* v4.4.14: البوستر كيتحمّل فالخلفية — onReelResult ما كيتسناش تحميل الصورة
+   (كان كيبلوكي النتيجة حتى 24 ثانية ملي CDN كيتعطل)؛ ملي توصل data:URL
+   كنبدلو البوستر ديال الريل اللي مازال معروض. */
+function onThumbInlined(jsonString) {
+  try {
+    var d = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+    if (!d || !d.thumbUrl || d.thumbUrl.indexOf('data:') !== 0) return;
+    if (!current || !current.shortcode || d.shortcode !== current.shortcode) return;
+    current.thumbUrl = d.thumbUrl;
+    current.thumbnail = d.thumbUrl;
+    current.posterUrl = d.thumbUrl;
+    var player = document.getElementById('player');
+    if (player) player.poster = d.thumbUrl;
+    var photo = document.getElementById('photoPreview');
+    if (photo && photo.style.display === 'block') photo.src = d.thumbUrl;
+    console.log('thumb inlined in background, len=' + d.thumbUrl.length);
+  } catch (e) {}
+}
+
 /* ---- بحث عن حساب: الاسم، البايو، الصورة، الأعداد ---- */
 function parseUsername(input) {
   if (!input) return null;
