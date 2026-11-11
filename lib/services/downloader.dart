@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'instagram_service.dart';
 import 'platform.dart';
+import 'quicksave_service.dart';
 
 class Downloader {
   static const int _connectTimeoutMs = 30000;
@@ -28,25 +29,13 @@ class Downloader {
         'Accept-Language': 'en-US,en;q=0.9',
       };
 
-  // QuickSave fallback headers — same UA as QuickSave API request
-  // Required by spec: "Download the video URL with the same user-agent header"
-  static const String _quickSaveUA =
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36';
-
-  static Map<String, String> get _quickSaveHeaders => {
-        'User-Agent': _quickSaveUA,
-        'Referer': 'https://www.instagram.com/',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': '*/*',
-      };
-
   /// Download headers: Instagram only (v4.4.0 removed the other
   /// platforms) — every download is an Instagram CDN file, fetched
   /// with the Instagram headers. When [useQuickSaveUA] is true, the
   /// QuickSave UA is used (required for quicksave.my fallback CDN links).
   static Map<String, String> _headersFor(String url,
       {bool useQuickSaveUA = false}) {
-    if (useQuickSaveUA) return _quickSaveHeaders;
+    if (useQuickSaveUA) return QuickSaveService.downloadHeaders;
     return _headers;
   }
 

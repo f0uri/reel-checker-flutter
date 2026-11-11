@@ -15,6 +15,7 @@ import 'services/license_service.dart';
 import 'services/platform.dart';
 import 'services/security.dart';
 import 'services/updater.dart';
+import 'video_preview.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late final Updater _updater;
   late final Bridge _bridge;
   bool _pageReady = false;
+  bool _previewOpen = false;
 
   @override
   void initState() {
@@ -77,7 +79,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           onPageFinished: _onPageFinished,
         ),
       );
-    _bridge = Bridge(_controller, _updater);
+    _bridge = Bridge(_controller, _updater, onOpenPreview: _openPreview);
     _controller.addJavaScriptChannel(
       'AndroidBridge',
       onMessageReceived: (message) {
@@ -87,6 +89,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _updater.attach(_controller);
     unawaited(_updater.restoreBlockedState());
     unawaited(_initApp());
+  }
+
+  Future<void> _openPreview(Uri url) async {
+    if (!mounted || _previewOpen) return;
+    _previewOpen = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => VideoPreviewPage(url: url),
+      ));
+    } finally {
+      _previewOpen = false;
+    }
   }
 
   /// v4.4.6: a build that is not signed with our key shows a

@@ -14,15 +14,18 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'downloader.dart';
 import 'instagram_service.dart';
 import 'license_service.dart';
-import 'preview_proxy.dart';
 import 'quicksave_service.dart';
 import 'updater.dart';
 
 class Bridge {
-  Bridge(this._controller, this._updater);
+  Bridge(this._controller, this._updater, {required this.onOpenPreview});
 
   final WebViewController _controller;
   final Updater _updater;
+  final void Function(Uri url) onOpenPreview;
+  String? _previewCode;
+  Uri? _previewUrl;
+  int _checkGeneration = 0;
 
   final Map<String, bool> _quickSaveShortcodes = {};
 
@@ -34,6 +37,7 @@ class Bridge {
   function call(m, a) { ch.postMessage(JSON.stringify({m: m, a: a})); }
   window.AndroidBridge = {
     checkReel: function (code) { call('checkReel', [code]); },
+    openPreview: function (code) { call('openPreview', [code]); },
     downloadReel: function (videoUrl, shortcode) { call('downloadReel', [videoUrl, shortcode]); },
     downloadMediaByCode: function (shortcode) { call('downloadMediaByCode', [shortcode]); },
     downloadMediaUrls: function (shortcode, mediaType, urlsJson) { call('downloadMediaUrls', [shortcode, mediaType, urlsJson]); },
@@ -81,6 +85,12 @@ class Bridge {
       switch (method) {
         case 'checkReel':
           await _checkReel(_arg(args, 0));
+          break;
+        case 'openPreview':
+          final url = _previewUrl;
+          if (url != null && _arg(args, 0) == _previewCode) {
+            onOpenPreview(url);
+          }
           break;
         case 'downloadReel':
           await _downloadReel(_arg(args, 0), _arg(args, 1));
@@ -158,7 +168,7 @@ class Bridge {
     ];
     for (var i = 0; i < headerSets.length; i++) {
       try {
-        debugPrint('[ReelChecker] thumb inline attempt ${i + 1}/3 for $thumb');
+        debugPrint('[ReelChecker] thumb inline attempt ${i + 1}/3');
         final resp = await http
             .get(Uri.parse(thumb), headers: headerSets[i])
             .timeout(const Duration(seconds: 8));
@@ -188,6 +198,9 @@ class Bridge {
   /// downloader server has been removed completely. No fallback to
   /// server or Instagram extraction remains for video.
   Future<void> _checkReel(String shortcode) async {
+    final generation = ++_checkGeneration;
+    _previewCode = null;
+    _previewUrl = null;
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
       await _postJson('onReelResult', {'ok': false, 'error': 'REEL_NOT_FOUND'});
@@ -202,24 +215,23 @@ class Bridge {
       debugPrint('[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
       _quickSaveShortcodes[code] = true;
       await _inlineThumbnail(result);
-      // Proxy video for preview so <video> can stream with proper headers (CORS/referer fix)
-      final vUrl = (result['videoUrl'] as String?) ?? '';
-      if (vUrl.isNotEmpty) {
-        final proxy = await PreviewProxy.register(code, vUrl);
-        if (proxy != null) {
-          result['previewUrl'] = proxy;
-          // Keep original for download; previewUrl is what <video> will use
-          result['videoUrlOriginal'] = vUrl;
-          debugPrint('[ReelChecker] preview proxy $proxy for $code');
-        }
+      if (generation != _checkGeneration) return;
+      final uri = Uri.tryParse((result['videoUrl'] as String?) ?? '');
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https') &&
+          uri.host.isNotEmpty) {
+        _previewCode = code;
+        _previewUrl = uri;
       }
+      result['previewAvailable'] = _previewUrl != null;
       await _postJson('onReelResult', result);
       return;
     } on ReelException catch (e) {
+      if (generation != _checkGeneration) return;
       debugPrint('[ReelChecker] source: quicksave.my failed for $code error=${e.code}');
       await _postJson('onReelResult', {'ok': false, 'error': e.code});
       return;
     } catch (e) {
+      if (generation != _checkGeneration) return;
       debugPrint('[ReelChecker] source: quicksave.my exception for $code: $e');
       await _postJson('onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
       return;

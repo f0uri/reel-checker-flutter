@@ -48,6 +48,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Test preview UI
+        run: node --test test/preview_ui.test.js
+
       - name: Analyze
         run: flutter analyze || echo "analyze warnings ignored for OTA"
 
@@ -71,6 +74,7 @@ jobs:
       # (e.g. version 4.4.4 -> tag v4.4.4). The release must already exist;
       # --clobber replaces the asset on re-runs of the same version.
       - name: Upload APK to release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
