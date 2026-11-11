@@ -800,8 +800,11 @@ function onReelResult(jsonString) {
     }
     player.style.display = 'block';
     player.poster = posterUrl;
-    // v4.4.9: previewUrl is proxied via local server with proper headers (fixes CORS/referer block);
-    // fallback to direct CDN URL if proxy not available. Add crossOrigin/referrerPolicy for direct case.
+    // v4.4.9+: previewUrl is proxied via local server with proper headers (fixes CORS/referer block);
+    // BOTH Instagram and quicksave.my sources always use the proxy URL when one is
+    // registered — never a direct CDN/tunnel src (quicksave hosts answer a raw
+    // <video> load with HTTP 400). Fallback to direct CDN URL only if the proxy
+    // itself failed. Add crossOrigin/referrerPolicy for the proxy case.
     var previewSrc = r.previewUrl || r.videoUrl || '';
     console.log('previewSrc=' + (previewSrc ? previewSrc.substring(0, 100) : 'empty') + ' viaProxy=' + !!r.previewUrl);
     player.crossOrigin = 'anonymous';
@@ -823,6 +826,12 @@ function onReelResult(jsonString) {
         try { player.removeAttribute('crossOrigin'); } catch(e) {}
         try { player.crossOrigin = ''; } catch(e) {}
         try { player.removeAttribute('crossorigin'); player.crossOrigin = null; } catch(e) {}
+        // Direct src never carries our custom headers, and a leftover
+        // crossorigin="anonymous" / referrerpolicy="no-referrer" makes the
+        // direct load fail CORS (and quicksave hosts need a Referer) — strip
+        // both before falling back to a direct CDN src.
+        try { player.removeAttribute('referrerpolicy'); } catch(e) {}
+        try { player.referrerPolicy = ''; } catch(e) {}
         player.src = r.videoUrl;
         player.load();
         var p2 = player.play(); if (p2 && p2.catch) p2.catch(function(){});
