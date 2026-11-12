@@ -15,6 +15,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'downloader.dart';
 import 'instagram_service.dart';
 import 'license_service.dart';
+import 'listnr_service.dart';
 import 'preview_proxy.dart';
 import 'quicksave_service.dart';
 import 'updater.dart';
@@ -209,9 +210,9 @@ class Bridge {
     } catch (_) {}
   }
 
-  /// Video URL is now obtained ONLY via quicksave.my — the old
-  /// downloader server has been removed completely. No fallback to
-  /// server or Instagram extraction remains for video.
+  /// Video is fetched from two sources: Listnr first (no token, direct
+  /// CDN link), QuickSave as fallback. If both fail, the error is posted
+  /// to the page exactly as before. The player design is unchanged.
   Future<void> _checkReel(String shortcode) async {
     final code = _cleanCode(shortcode);
     if (code.isEmpty) {
@@ -222,41 +223,50 @@ class Bridge {
       await _postJson('onReelResult', {'ok': false, 'error': 'NOT_LICENSED'});
       return;
     }
-    try {
-      final result = await QuickSaveService.fetchReelMeta(code);
-      debugPrint(
-          '[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
-      _quickSaveShortcodes[code] = true;
-      // Proxy video for preview so <video> can stream with proper headers (CORS/referer fix)
-      final vUrl = (result['videoUrl'] as String?) ?? '';
-      if (vUrl.isNotEmpty) {
-        final proxy = await PreviewProxy.register(code, vUrl);
-        if (proxy != null) {
-          result['previewUrl'] = proxy;
-          // Keep original for download; previewUrl is what <video> will use
-          result['videoUrlOriginal'] = vUrl;
-          debugPrint('[ReelChecker] preview proxy $proxy for $code');
-        }
+    // Dual source: Listnr first, QuickSave fallback.
+    Map<String, dynamic>? result = await ListnrService.tryFetchReelMeta(code);
+    String? lastError;
+    if (result != null) {
+      debugPrint('[ReelChecker] source: listnr.ai succeeded for $code');
+    } else {
+      try {
+        result = await QuickSaveService.fetchReelMeta(code);
+        debugPrint(
+            '[ReelChecker] source: quicksave.my succeeded for $code height=${result['height']} label=${result['qualityLabel']}');
+      } on ReelException catch (e) {
+        lastError = e.code;
+        debugPrint(
+            '[ReelChecker] dual source failed for $code error=${e.code}');
+      } catch (e) {
+        lastError = 'INSTAGRAM_ERROR';
+        debugPrint('[ReelChecker] dual source exception for $code: $e');
       }
-      await _postJson('onReelResult', result);
-      // Thumbnail inlining now runs in the background: it used to block
-      // the result for up to 24s (3 header sets x 8s timeout) whenever
-      // the CDN thumbnail stalls, which is most of the 30-40s wait.
-      // The page shows the original thumbUrl as poster meanwhile and
-      // swaps to the inlined data: URL when it arrives (onThumbInlined).
-      unawaited(_inlineThumbnailInBackground(code, result));
-      return;
-    } on ReelException catch (e) {
-      debugPrint(
-          '[ReelChecker] source: quicksave.my failed for $code error=${e.code}');
-      await _postJson('onReelResult', {'ok': false, 'error': e.code});
-      return;
-    } catch (e) {
-      debugPrint('[ReelChecker] source: quicksave.my exception for $code: $e');
-      await _postJson(
-          'onReelResult', {'ok': false, 'error': 'INSTAGRAM_ERROR'});
+    }
+    if (result == null) {
+      await _postJson('onReelResult',
+          {'ok': false, 'error': lastError ?? 'INSTAGRAM_ERROR'});
       return;
     }
+    _quickSaveShortcodes[code] = result['viaQuickSave'] == true;
+    // Proxy video for preview so <video> can stream with proper headers (CORS/referer fix)
+    final vUrl = (result['videoUrl'] as String?) ?? '';
+    if (vUrl.isNotEmpty) {
+      final proxy = await PreviewProxy.register(code, vUrl);
+      if (proxy != null) {
+        result['previewUrl'] = proxy;
+        // Keep original for download; previewUrl is what <video> will use
+        result['videoUrlOriginal'] = vUrl;
+        debugPrint('[ReelChecker] preview proxy $proxy for $code');
+      }
+    }
+    await _postJson('onReelResult', result);
+    // Thumbnail inlining now runs in the background: it used to block
+    // the result for up to 24s (3 header sets x 8s timeout) whenever
+    // the CDN thumbnail stalls, which is most of the 30-40s wait.
+    // The page shows the original thumbUrl as poster meanwhile and
+    // swaps to the inlined data: URL when it arrives (onThumbInlined).
+    unawaited(_inlineThumbnailInBackground(code, result));
+    return;
   }
 
   Future<void> _searchAccount(String rawInput) async {
@@ -319,10 +329,18 @@ class Bridge {
     await _postJson('onDownloadResult', res);
   }
 
-  /// Video is now fetched ONLY via quicksave.my — no Instagram fallback.
+  /// Reel meta from two sources: Listnr first, QuickSave fallback.
+  /// Used for downloads by shortcode (no preview involved).
   Future<Map<String, dynamic>?> _fetchMetaWithFallback(String code) async {
     if (!await LicenseService.isAllowed()) {
       throw ReelException('NOT_LICENSED');
+    }
+    final fromListnr = await ListnrService.tryFetchReelMeta(code);
+    if (fromListnr != null) {
+      debugPrint('[ReelChecker] fetchMeta listnr succeeded for $code');
+      fromListnr['_viaQuickSave'] = false;
+      _quickSaveShortcodes[code] = false;
+      return fromListnr;
     }
     final meta = await QuickSaveService.fetchReelMeta(code);
     debugPrint('[ReelChecker] fetchMeta quicksave succeeded for $code');
